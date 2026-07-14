@@ -40,12 +40,12 @@ h1,h2,h3{font-weight:650}
 .addBtn:disabled{opacity:.5}
 .hint{color:var(--muted);font-size:13px;margin:10px 4px 0;text-align:center}
 .errmsg{color:var(--serious);font-size:14px;margin:10px 4px 0;text-align:center;display:none}
-/* confirm card */
-#confirmCard{display:none;margin-top:14px;border-color:var(--accent)}
-#confirmCard .cc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-#confirmCard .cc-amount{font-size:22px;font-weight:700}
-#confirmCard .cc-desc{color:var(--ink2);font-size:15px}
-#confirmCard .cc-src{font-size:12px;color:var(--muted);margin-top:8px}
+/* confirm cards */
+.ccard{margin:14px 0 0;border-color:var(--accent)}
+.ccard .cc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.ccard .cc-amount{font-size:22px;font-weight:700}
+.ccard .cc-desc{color:var(--ink2);font-size:15px}
+.ccard .cc-src{font-size:12px;color:var(--muted);margin-top:8px}
 .selrow{display:flex;gap:8px;margin-top:10px}
 .selrow select{flex:1;min-width:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:15px}
 .cc-ok{margin-top:12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;font-size:15px;font-weight:600;cursor:pointer}
@@ -142,23 +142,9 @@ nav button.active{color:var(--accent)}
   <textarea class="bigInput" id="entryInput" rows="2" placeholder="np. 5 zł żelki&#10;(wpisz albo podyktuj)" enterkeyhint="done"></textarea>
   <button class="addBtn" id="addBtn">Dodaj wydatek</button>
   <div class="errmsg" id="addErr"></div>
-  <div class="hint">Podyktuj kwotę i co kupiłeś — kategorię dobiorę automatycznie.<br>Możesz dodać „wczoraj", np. „wczoraj 20 zł kino".</div>
+  <div class="hint">Podyktuj kwotę i co kupiłeś — kategorię dobiorę automatycznie.<br>Możesz podać kilka naraz: „5 zł żelki, 20 zł paliwo i 30 zł kino"<br>oraz dodać „wczoraj", np. „wczoraj 20 zł kino".</div>
 
-  <div class="card" id="confirmCard">
-    <div class="cc-head">
-      <div>
-        <div class="cc-amount" id="ccAmount"></div>
-        <div class="cc-desc" id="ccDesc"></div>
-      </div>
-      <div style="font-size:26px" id="ccIcon"></div>
-    </div>
-    <div class="selrow">
-      <select id="ccCat"></select>
-      <select id="ccSub"></select>
-    </div>
-    <div class="cc-src" id="ccSrc"></div>
-    <button class="cc-ok" id="ccOk">OK, zgadza się</button>
-  </div>
+  <div id="confirmArea"></div>
 
   <div class="card" style="margin-top:16px">
     <h3>Dzisiaj <span id="todaySum" style="float:right;color:var(--ink);font-size:14px"></span></h3>
@@ -465,51 +451,129 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON, bez komentarza: {"kategoria":"...","podkat
 }
 
 /* ================= DODAWANIE ================= */
-let lastAdded = null;
+let pending = [];
+const SRC_TXT = {dict:"✅ Rozpoznano ze słownika — popraw, jeśli się mylę.", ai:"🤖 Rozpoznane przez AI i zapamiętane na przyszłość.", none:"❓ Nie rozpoznałem — wybierz kategorię, a zapamiętam.", fail:"⚠️ AI niedostępne — wybierz kategorię, a zapamiętam."};
+
+function hasAmount(s){
+  if(/\d/.test(s)) return true;
+  return norm(s).split(" ").some(w=>NUMWORDS[w]!==undefined);
+}
+/* kwota z walutą lub groszami — tylko takie „mocne” kwoty rozdzielają zdanie na kilka wydatków */
+const AMOUNT_RE = /\d+[.,]\d{1,2}\s*(?:złotych|zlotych|złote|zlote|złoty|zloty|zł|zl|pln)?|\d+\s*(?:złotych|zlotych|złote|zlote|złoty|zloty|zł|zl|pln)(?:\s*\d{1,2}\s*(?:groszy|grosze|grosz|gr))?|\d+\s*(?:groszy|grosze|grosz|gr)/gi;
+function splitByAmounts(seg){
+  const matches = [...seg.matchAll(AMOUNT_RE)];
+  if(matches.length<2) return [seg];
+  const pre = seg.slice(0, matches[0].index).trim().toLowerCase();
+  const pieces = [];
+  if(pre==="" || pre==="za"){
+    // styl „5 zł żelki 20 zł paliwo” — tnij przed każdą kolejną kwotą
+    let prev = 0;
+    for(let i=1;i<matches.length;i++){ pieces.push(seg.slice(prev, matches[i].index)); prev = matches[i].index; }
+    pieces.push(seg.slice(prev));
+  } else {
+    // styl „żelki 5 zł paliwo 20 zł” — tnij po każdej kwocie
+    let prev = 0;
+    for(let i=0;i<matches.length;i++){
+      const end = matches[i].index + matches[i][0].length;
+      pieces.push(seg.slice(prev, i===matches.length-1 ? seg.length : end));
+      prev = end;
+    }
+  }
+  return pieces;
+}
+function splitEntries(raw){
+  let t = raw;
+  let dayOffset = 0;
+  if(/przedwczoraj/i.test(t)){ dayOffset=-2; t=t.replace(/przedwczoraj/gi," "); }
+  else if(/wczoraj/i.test(t)){ dayOffset=-1; t=t.replace(/wczoraj/gi," "); }
+  // nie rozdzielaj „5 zł i 50 groszy” na dwa wydatki
+  t = t.replace(/((?:złotych|zlotych|złote|zlote|złoty|zloty|zł|zl)\s*)i\s+(?=\d{1,2}\s*(?:groszy|grosze|grosz|gr))/gi,"$1");
+  const rawParts = t.split(/\s*,\s*(?=\D)|\s+i\s+|\s+oraz\s+|\s+plus\s+|\s*;\s*|\n+/i);
+  const parts = rawParts.flatMap(p=>splitByAmounts(p));
+  // fragmenty bez kwoty doklej do sąsiedniego (np. „chipsy i cola 15 zł” = jeden wydatek)
+  const out = []; let buf = "";
+  for(const part of parts){
+    const p = part.trim(); if(!p) continue;
+    if(hasAmount(p)){ out.push(buf ? buf+" "+p : p); buf=""; }
+    else buf = buf ? buf+" "+p : p;
+  }
+  if(buf){ if(out.length) out[out.length-1] += " "+buf; else out.push(buf); }
+  return {segments:out, dayOffset};
+}
+function plWydatki(n){
+  if(n===1) return "wydatek";
+  const d=n%10, s=n%100;
+  return (d>=2&&d<=4&&!(s>=12&&s<=14)) ? "wydatki" : "wydatków";
+}
 async function addEntry(){
   const raw = $("entryInput").value.trim();
   const err = $("addErr");
   err.style.display="none";
   if(!raw) return;
-  const p = parseText(raw);
-  if(p.amount===null || p.amount<=0){
-    err.textContent = "Nie widzę kwoty — powiedz np. „5 złotych żelki”."; err.style.display="block"; return;
+  const {segments, dayOffset} = splitEntries(raw);
+  const items = [];
+  for(const s of segments){
+    const p = parseText(s);
+    if(p.amount!==null && p.amount>0 && p.desc) items.push(p);
   }
-  if(!p.desc){
-    err.textContent = "Nie widzę, co kupiłeś — powiedz np. „5 złotych żelki”."; err.style.display="block"; return;
+  if(!items.length){
+    err.textContent = "Nie widzę kwoty i opisu — powiedz np. „5 złotych żelki”."; err.style.display="block"; return;
   }
-  const e = { id:uid(), date:todayStr(p.dayOffset), ts:Date.now(), amount:Math.round(p.amount*100)/100, desc:p.desc, cat:"Inne", sub:"Inne", src:"none" };
-  const hit = dictLookup(p.desc);
   $("entryInput").value = "";
-  if(hit){ e.cat=hit.cat; e.sub=hit.sub; e.src="dict"; finishAdd(e); }
-  else {
-    if(SET.apiKey && navigator.onLine){
-      $("addBtn").disabled = true; $("addBtn").textContent = "🤖 Rozpoznaję…";
-      try{
-        const ai = await aiClassify(p.desc);
-        if(ai){ e.cat=ai.cat; e.sub=ai.sub; e.src="ai"; learn(p.desc, ai.cat, ai.sub); }
-      }catch(ex){ e.src="fail"; }
-      $("addBtn").disabled = false; $("addBtn").textContent = "Dodaj wydatek";
-    }
-    finishAdd(e);
+  const entries = [], unknown = [];
+  for(const p of items){
+    const e = { id:uid(), date:todayStr(dayOffset+p.dayOffset), ts:Date.now(), amount:Math.round(p.amount*100)/100, desc:p.desc, cat:"Inne", sub:"Inne", src:"none" };
+    const hit = dictLookup(p.desc);
+    if(hit){ e.cat=hit.cat; e.sub=hit.sub; e.src="dict"; } else unknown.push(e);
+    entries.push(e);
   }
+  if(unknown.length && SET.apiKey && navigator.onLine){
+    $("addBtn").disabled = true; $("addBtn").textContent = "🤖 Rozpoznaję…";
+    for(const e of unknown){
+      try{
+        const ai = await aiClassify(e.desc);
+        if(ai){ e.cat=ai.cat; e.sub=ai.sub; e.src="ai"; learn(e.desc, ai.cat, ai.sub); }
+      }catch(ex){ e.src="fail"; }
+    }
+    $("addBtn").disabled = false; $("addBtn").textContent = "Dodaj wydatek";
+  }
+  EXP.push(...entries); save("bw_expenses",EXP);
+  pending = entries;
+  renderConfirm(); renderAll();
+  if(entries.length>1) toast("Dodano "+entries.length+" "+plWydatki(entries.length)+" — razem "+zl(sum(entries)));
 }
-function finishAdd(e){
-  EXP.push(e); save("bw_expenses",EXP);
-  lastAdded = e;
-  showConfirm(e);
-  renderAll();
-}
-function showConfirm(e){
-  const c = $("confirmCard");
-  c.style.display = "block";
-  $("ccAmount").textContent = zl(e.amount);
-  $("ccDesc").textContent = e.desc + (e.date!==todayStr() ? " · "+fmtDate(e.date) : "");
-  $("ccIcon").textContent = CATS[e.cat].icon;
-  fillCatSelect($("ccCat"), e.cat);
-  fillSubSelect($("ccSub"), e.cat, e.sub);
-  const srcTxt = {dict:"✅ Rozpoznano ze słownika — popraw, jeśli się mylę.", ai:"🤖 Rozpoznane przez AI i zapamiętane na przyszłość.", none:"❓ Nie rozpoznałem — wybierz kategorię, a zapamiętam.", fail:"⚠️ AI niedostępne — wybierz kategorię, a zapamiętam."}[e.src];
-  $("ccSrc").textContent = srcTxt;
+function renderConfirm(){
+  const area = $("confirmArea");
+  if(!pending.length){ area.innerHTML=""; return; }
+  area.innerHTML = pending.map((e,i)=>`<div class="card ccard">
+    <div class="cc-head">
+      <div>
+        <div class="cc-amount">${zl(e.amount)}</div>
+        <div class="cc-desc">${esc(e.desc)}${e.date!==todayStr()?" · "+fmtDate(e.date):""}</div>
+      </div>
+      <div style="font-size:26px" data-ico="${i}">${CATS[e.cat].icon}</div>
+    </div>
+    <div class="selrow"><select data-cat="${i}"></select><select data-sub="${i}"></select></div>
+    <div class="cc-src">${SRC_TXT[e.src]}</div>
+  </div>`).join("") + `<button class="cc-ok" id="ccOk">OK, ${pending.length>1?"wszystko ":""}się zgadza</button>`;
+  pending.forEach((e,i)=>{
+    const cs = area.querySelector(`select[data-cat="${i}"]`);
+    const ss = area.querySelector(`select[data-sub="${i}"]`);
+    fillCatSelect(cs, e.cat); fillSubSelect(ss, e.cat, e.sub);
+    cs.addEventListener("change",()=>{
+      e.cat = catFromOption(cs.value); e.sub = CATS[e.cat].subs[0];
+      fillSubSelect(ss, e.cat, e.sub);
+      area.querySelector(`[data-ico="${i}"]`).textContent = CATS[e.cat].icon;
+      learn(e.desc, e.cat, e.sub);
+      save("bw_expenses",EXP); renderAll();
+    });
+    ss.addEventListener("change",()=>{
+      e.sub = ss.value;
+      learn(e.desc, e.cat, e.sub);
+      save("bw_expenses",EXP); renderAll();
+    });
+  });
+  $("ccOk").addEventListener("click",()=>{ pending=[]; renderConfirm(); });
 }
 function fillCatSelect(sel, val){
   sel.innerHTML = Object.keys(CATS).map(c=>`<option ${c===val?"selected":""}>${CATS[c].icon} ${c}</option>`).join("");
@@ -519,22 +583,6 @@ function fillSubSelect(sel, cat, val){
   sel.innerHTML = CATS[cat].subs.map(s=>`<option ${s===val?"selected":""}>${s}</option>`).join("");
 }
 const catFromOption = t=>t.replace(/^\S+\s/,"");
-$("ccCat").addEventListener("change",()=>{
-  if(!lastAdded) return;
-  const cat = catFromOption($("ccCat").value);
-  lastAdded.cat = cat; lastAdded.sub = CATS[cat].subs[0];
-  fillSubSelect($("ccSub"), cat, lastAdded.sub);
-  $("ccIcon").textContent = CATS[cat].icon;
-  learn(lastAdded.desc, lastAdded.cat, lastAdded.sub);
-  save("bw_expenses",EXP); renderAll();
-});
-$("ccSub").addEventListener("change",()=>{
-  if(!lastAdded) return;
-  lastAdded.sub = $("ccSub").value;
-  learn(lastAdded.desc, lastAdded.cat, lastAdded.sub);
-  save("bw_expenses",EXP); renderAll();
-});
-$("ccOk").addEventListener("click",()=>{ $("confirmCard").style.display="none"; lastAdded=null; });
 $("addBtn").addEventListener("click", addEntry);
 $("entryInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); addEntry(); } });
 
