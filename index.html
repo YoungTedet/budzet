@@ -194,11 +194,12 @@ nav button.active{color:var(--accent)}
     <div class="mn-label" id="cLabel"></div>
     <button id="cNext">›</button>
   </div>
+  <select id="chartCat" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:15px;margin-bottom:14px"></select>
   <div class="tiles">
     <div class="tile"><div class="t-label">Suma</div><div class="t-val" id="tSum">—</div></div>
     <div class="tile"><div class="t-label">Śr. / dzień</div><div class="t-val" id="tAvg">—</div></div>
     <div class="tile"><div class="t-label">Rekord dnia</div><div class="t-val" id="tMax">—</div><div class="t-sub" id="tMaxDay"></div></div>
-    <div class="tile"><div class="t-label">Zachcianki</div><div class="t-val" id="tZb">—</div><div class="t-sub">niezdrowe i zbędne</div></div>
+    <div class="tile"><div class="t-label">Niepotrzebne</div><div class="t-val" id="tZb">—</div><div class="t-sub">🍭 zachcianki i 🤔 wątpliwe</div></div>
   </div>
   <div class="card chartbox">
     <h3>Wydatki dzienne</h3>
@@ -207,9 +208,15 @@ nav button.active{color:var(--accent)}
     <div class="chart-note" id="barNote"></div>
   </div>
   <div class="card chartbox">
-    <h3>Kategorie</h3>
+    <h3 id="donutTitle">Kategorie</h3>
     <div id="donutChart"></div>
     <div class="legend" id="donutLegend"></div>
+    <div class="chart-note" id="donutNote"></div>
+  </div>
+  <div class="card">
+    <h3>Ocena zakupów</h3>
+    <div id="ocList"></div>
+    <div class="chart-note">AI ocenia przy dodawaniu — możesz to zmienić w każdym wpisie.</div>
   </div>
   <div class="card">
     <h3>Największe wydatki</h3>
@@ -231,6 +238,11 @@ nav button.active{color:var(--accent)}
     <h3>Stałe opłaty co miesiąc <button class="bud-edit" id="addFixBtn" style="float:right">+ dodaj</button></h3>
     <div id="fixedList"></div>
     <div class="bud-status" id="fixedSum" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <h3>Dłużnicy <button class="bud-edit" id="addDebtBtn" style="float:right">+ dodaj</button></h3>
+    <div id="debtList"></div>
+    <div class="bud-status" id="debtSum" style="margin-top:8px"></div>
   </div>
   <div class="card">
     <h3>Budżet miesięczny <button class="bud-edit" id="editTotalBtn" style="float:right">zmień</button></h3>
@@ -302,15 +314,21 @@ nav button.active{color:var(--accent)}
 "use strict";
 /* ================= DANE ================= */
 const CATS = {
-  "Jedzenie":      {icon:"🍎", color:"#3987e5", subs:["Zakupy spożywcze","Niezdrowe jedzenie","Na mieście","Kawa","Alkohol","Inne"]},
-  "Transport":     {icon:"🚌", color:"#199e70", subs:["Paliwo","Bilety","Taxi / przejazdy","Auto","Inne"]},
-  "Dom":           {icon:"🏠", color:"#c98500", subs:["Rachunki","Czynsz","Wyposażenie","Chemia i środki","Inne"]},
-  "Rozrywka":      {icon:"🎬", color:"#008300", subs:["Kino / wydarzenia","Gry","Książki","Hobby","Inne"]},
-  "Subskrypcje":   {icon:"📱", color:"#9085e9", subs:["Streaming","Aplikacje","Telefon / internet","Inne"]},
-  "Zdrowie":       {icon:"💊", color:"#e66767", subs:["Apteka","Lekarz","Sport","Uroda","Inne"]},
+  "Jedzenie":      {icon:"🍎", color:"#3987e5", subs:["Zakupy spożywcze","Niezdrowe jedzenie","Napoje","Na mieście","Kawa","Alkohol","Inne"]},
+  "Sport":         {icon:"🛹", color:"#008300", subs:["Skateboarding","Wspinaczka","Siłownia","Basen","Rower","Bieganie","Sporty zimowe","Sporty walki","Sprzęt sportowy","Karnety i wejścia","Inne"]},
+  "Transport":     {icon:"🚌", color:"#199e70", subs:["Paliwo","Bilety","Taxi / przejazdy","Parking","Auto","Inne"]},
+  "Dom":           {icon:"🏠", color:"#c98500", subs:["Rachunki","Czynsz","Wyposażenie","Chemia i środki","Remont","Inne"]},
+  "Rozrywka":      {icon:"🎬", color:"#9085e9", subs:["Kino / wydarzenia","Gry","Książki","Hobby","Imprezy","Inne"]},
+  "Subskrypcje":   {icon:"📱", color:"#6da7ec", subs:["Streaming","Aplikacje","Telefon / internet","Inne"]},
+  "Zdrowie":       {icon:"💊", color:"#e66767", subs:["Apteka","Lekarz","Badania","Uroda","Inne"]},
   "Ubrania":       {icon:"👕", color:"#d55181", subs:["Odzież","Buty","Dodatki","Inne"]},
   "Praca / sprzęt":{icon:"🎥", color:"#d95926", subs:["Sprzęt filmowy","Oprogramowanie","Akcesoria","Inne"]},
-  "Inne":          {icon:"📦", color:"#898781", subs:["Prezenty","Inne"]}
+  "Elektronika":   {icon:"🔌", color:"#256abf", subs:["Telefon i komputer","AGD","Akcesoria","Inne"]},
+  "Edukacja":      {icon:"📚", color:"#86b6ef", subs:["Kursy i szkolenia","Książki i materiały","Inne"]},
+  "Podróże":       {icon:"✈️", color:"#1c5cab", subs:["Noclegi","Dojazd i przeloty","Jedzenie w podróży","Atrakcje","Inne"]},
+  "Zwierzęta":     {icon:"🐾", color:"#eda100", subs:["Karma","Weterynarz","Akcesoria","Inne"]},
+  "Prezenty":      {icon:"🎁", color:"#e87ba4", subs:["Prezenty","Kwiaty","Na cel charytatywny","Inne"]},
+  "Inne":          {icon:"📦", color:"#898781", subs:["Pożyczki","Urzędy i opłaty","Inne"]}
 };
 const MONTHS = ["styczeń","luty","marzec","kwiecień","maj","czerwiec","lipiec","sierpień","wrzesień","październik","listopad","grudzień"];
 const MONTHS_GEN = ["stycznia","lutego","marca","kwietnia","maja","czerwca","lipca","sierpnia","września","października","listopada","grudnia"];
@@ -320,15 +338,27 @@ const DAYS = ["niedziela","poniedziałek","wtorek","środa","czwartek","piątek"
 const BUILTIN = {};
 (function(){
   const add=(cat,sub,words)=>words.forEach(w=>BUILTIN[w]=[cat,sub]);
-  add("Jedzenie","Zakupy spożywcze",["biedronka","lidl","zabka","aldi","kaufland","auchan","carrefour","dino","netto","stokrotka","zakupy","chleb","bulki","bulka","maslo","mleko","ser","jajka","jogurt","szynka","kielbasa","parowki","warzywa","owoce","jablka","banany","pomidory","ziemniaki","ogorki","ryz","makaron","platki","kasza","maka","cukier","woda","sok","spozywcze","wedlina","twarog","smietana","kefir","pieczywo"]);
-  add("Jedzenie","Niezdrowe jedzenie",["zelki","chipsy","czekolada","baton","batony","batonik","cukierki","slodycze","lody","ciastka","ciasto","paczek","paczki","drozdzowka","cola","pepsi","sprite","fanta","energetyk","monster","redbull","guma","zabka slodycze","napoj","oreo","nutella","krowki","praliny","wafelek","wafelki"]);
+  add("Jedzenie","Zakupy spożywcze",["biedronka","lidl","zabka","aldi","kaufland","auchan","carrefour","dino","netto","stokrotka","zakupy","chleb","bulki","bulka","maslo","mleko","ser","jajka","jogurt","szynka","kielbasa","parowki","warzywa","owoce","jablka","banany","pomidory","ziemniaki","ogorki","ryz","makaron","platki","kasza","maka","cukier","spozywcze","wedlina","twarog","smietana","kefir","pieczywo"]);
+  add("Jedzenie","Niezdrowe jedzenie",["zelki","chipsy","czekolada","baton","batony","batonik","cukierki","slodycze","lody","ciastka","ciasto","paczek","paczki","drozdzowka","cola","pepsi","sprite","fanta","energetyk","monster","redbull","guma","oreo","nutella","krowki","praliny","wafelek","wafelki"]);
+  add("Jedzenie","Napoje",["woda","sok","soki","napoj","napoje","lemoniada","woda gazowana","woda niegazowana","ice tea"]);
   add("Jedzenie","Na mieście",["restauracja","obiad","kolacja","sniadanie","lunch","sushi","kebab","pizza","burger","mcdonald","mcdonalds","mcdonalda","kfc","zapiekanka","bar mleczny","stolowka","pyszne","glovo","wolt","uber eats","bar","knajpa","bistro","food truck","frytki","hot dog","hotdog"]);
   add("Jedzenie","Kawa",["kawa","kawy","latte","cappuccino","espresso","starbucks","costa","kawiarnia","herbata","matcha"]);
   add("Jedzenie","Alkohol",["piwo","piwa","wino","wodka","whisky","drink","drinki","alkohol","szoty","prosecco"]);
   add("Transport","Paliwo",["paliwo","benzyna","diesel","orlen","tankowanie","lpg","stacja paliw","shell","bp","circle"]);
   add("Transport","Bilety",["bilet","bilety","pkp","intercity","pociag","autobus","tramwaj","metro","komunikacja","mpk","ztm","skm","flixbus"]);
   add("Transport","Taxi / przejazdy",["uber","bolt","taxi","taksowka","freenow","hulajnoga","rower miejski","przejazd"]);
-  add("Transport","Auto",["myjnia","parking","przeglad","mechanik","opony","autostrada","winieta","olej silnikowy","warsztat","oc","ubezpieczenie auta"]);
+  add("Transport","Parking",["parking","parkomat","parkowanie","strefa parkowania"]);
+  add("Transport","Auto",["myjnia","przeglad","mechanik","opony","autostrada","winieta","olej silnikowy","warsztat","oc","ubezpieczenie auta"]);
+  add("Sport","Skateboarding",["skatepark","skate park","skate","deskorolka","deska","deck","gripy","griptape","trucki","lozyska","kolka do deski","blaty","fingerboard"]);
+  add("Sport","Wspinaczka",["wspinanie","wspinaczka","scianka","scianka wspinaczkowa","magnezja","uprzaz","buty wspinaczkowe","boulder","bouldering","lina wspinaczkowa"]);
+  add("Sport","Siłownia",["silownia","trening","joga","crossfit"]);
+  add("Sport","Basen",["basen","plywanie","aquapark","okularki plywackie","czepek"]);
+  add("Sport","Rower",["rower","rowerowe","serwis roweru","detka","kask rowerowy"]);
+  add("Sport","Bieganie",["bieganie","bieg","maraton","buty do biegania"]);
+  add("Sport","Sporty zimowe",["narty","snowboard","karnet narciarski","gogle","stok","wyciag"]);
+  add("Sport","Sporty walki",["boks","mma","judo","karate","rekawice bokserskie"]);
+  add("Sport","Karnety i wejścia",["karnet","multisport","wejscie","wejsciowka","squash","badminton","kregielnia"]);
+  add("Sport","Sprzęt sportowy",["decathlon","pilka","rakieta","hantle","mata","skakanka","rolki"]);
   add("Dom","Rachunki",["prad","gaz","rachunek","rachunki","oplata","oplaty","smieci","ogrzewanie","administracja"]);
   add("Dom","Czynsz",["czynsz","wynajem","najem"]);
   add("Dom","Wyposażenie",["ikea","castorama","obi","leroy","meble","lampa","garnek","patelnia","posciel","recznik","krzeslo","biurko","polka","dywan","zaslony"]);
@@ -341,16 +371,31 @@ const BUILTIN = {};
   add("Subskrypcje","Aplikacje",["subskrypcja","abonament","icloud","chatgpt","claude","dropbox","canva","aplikacja","google one"]);
   add("Subskrypcje","Telefon / internet",["telefon","internet","play","orange","t mobile","tmobile","plus gsm","doladowanie","router"]);
   add("Zdrowie","Apteka",["apteka","leki","lek","witaminy","tabletki","syrop","plastry","maska","suplementy","ibuprom","apap"]);
-  add("Zdrowie","Lekarz",["lekarz","dentysta","stomatolog","badania","wizyta","przychodnia","okulista","fizjoterapeuta","recepta"]);
-  add("Zdrowie","Sport",["silownia","basen","karnet","trening","joga","squash","multisport","bieganie","rolki"]);
+  add("Zdrowie","Lekarz",["lekarz","dentysta","stomatolog","wizyta","przychodnia","okulista","fizjoterapeuta","recepta"]);
+  add("Zdrowie","Badania",["badania","badanie krwi","morfologia","usg","rentgen"]);
   add("Zdrowie","Uroda",["fryzjer","kosmetyki","krem","perfumy","barber","manicure","golenie","szampon"]);
+  add("Elektronika","Telefon i komputer",["laptop","komputer","smartfon","tablet","monitor komputerowy","telewizor","konsola"]);
+  add("Elektronika","AGD",["pralka","lodowka","odkurzacz","zmywarka","mikrofalowka","czajnik elektryczny","zelazko"]);
+  add("Elektronika","Akcesoria",["sluchawki","ladowarka","powerbank","myszka","klawiatura","glosnik","etui","szklo na telefon"]);
+  add("Edukacja","Kursy i szkolenia",["kurs","kursy","szkolenie","udemy","korepetycje","warsztaty","lekcje"]);
+  add("Edukacja","Książki i materiały",["podrecznik","podreczniki","zeszyt","notes","dlugopis","materialy"]);
+  add("Podróże","Noclegi",["hotel","nocleg","airbnb","booking","hostel","pensjonat","camping"]);
+  add("Podróże","Dojazd i przeloty",["lot","samolot","przelot","ryanair","wizzair","prom"]);
+  add("Podróże","Atrakcje",["zwiedzanie","wycieczka","przewodnik","atrakcje"]);
+  add("Zwierzęta","Karma",["karma","karma dla psa","karma dla kota","przysmaki dla psa"]);
+  add("Zwierzęta","Weterynarz",["weterynarz","szczepienie psa","odrobaczenie"]);
+  add("Zwierzęta","Akcesoria",["smycz","obroza","kuweta","zwirek","zabawka dla psa","klatka"]);
   add("Ubrania","Odzież",["kurtka","spodnie","koszulka","koszula","sukienka","bluza","sweter","skarpetki","bielizna","tshirt","jeansy","ubrania","hm","zara","reserved","sinsay","cropp","house","vinted"]);
   add("Ubrania","Buty",["buty","trampki","sneakersy","adidasy","ccc","deichmann","sandaly","kozaki"]);
   add("Ubrania","Dodatki",["pasek","czapka","szalik","rekawiczki","okulary","plecak","torba","portfel","zegarek"]);
   add("Praca / sprzęt","Sprzęt filmowy",["statyw","obiektyw","kamera","aparat","mikrofon","gimbal","dron","lampa led","softbox","rig","matte box","monitor podgladowy","slider"]);
   add("Praca / sprzęt","Oprogramowanie",["adobe","davinci","resolve","premiere","wtyczka","plugin","licencja","final cut","after effects"]);
   add("Praca / sprzęt","Akcesoria",["dysk","ssd","karta sd","karta pamieci","bateria","akumulator","kabel","adapter","przejsciowka","filtr nd","hub","czytnik kart","pendrive","statyw mikrofonowy"]);
-  add("Inne","Prezenty",["prezent","prezenty","kwiaty","kwiatek","upominek","kartka urodzinowa"]);
+  add("Prezenty","Prezenty",["prezent","prezenty","upominek","kartka urodzinowa"]);
+  add("Prezenty","Kwiaty",["kwiaty","kwiatek","bukiet","roze","tulipany"]);
+  add("Prezenty","Na cel charytatywny",["zbiorka","zrzutka","datek","wosp","charytatywnie"]);
+  add("Inne","Pożyczki",["pozyczka","pozyczylem","dlug","oddalem dlug"]);
+  add("Inne","Urzędy i opłaty",["mandat","urzad","oplata skarbowa","znaczek","poczta","kurier","paczkomat","notariusz"]);
 })();
 
 /* liczby słownie */
@@ -363,7 +408,7 @@ const NUMWORDS = {"zero":0,"jeden":1,"jedna":1,"jednego":1,"dwa":2,"dwie":2,"trz
 const load = (k,d)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } };
 const save = (k,v)=>localStorage.setItem(k,JSON.stringify(v));
 let EXP = load("bw_expenses",[]);
-let SET = Object.assign({apiKey:"",budgetTotal:0,budgetCats:{},accounts:null,fixed:[],fixedPaid:{}}, load("bw_settings",{}));
+let SET = Object.assign({apiKey:"",budgetTotal:0,budgetCats:{},accounts:null,fixed:[],fixedPaid:{},debts:[]}, load("bw_settings",{}));
 if(!SET.accounts || !SET.accounts.length) SET.accounts = [
   {id:"a1",name:"Gotówka",start:0},
   {id:"a2",name:"Konto 1",start:0},
@@ -388,6 +433,13 @@ const todayStr = (off=0)=>{ const d=new Date(); d.setDate(d.getDate()+off); retu
 const uid = ()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc = s=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(msg){ const t=$("toast"); t.textContent=msg; t.style.display="block"; clearTimeout(toast._t); toast._t=setTimeout(()=>t.style.display="none",2600); }
+
+/* ---------- ocena wydatku: normalny / kontrowersyjny / niepotrzebny ---------- */
+const ocOf = e => e.oc || (e.zb ? "zb" : "ok");
+const OC_LABEL = {ok:"✅ normalny zakup", kontro:"🤔 kontrowersyjny", zb:"🍭 niepotrzebny"};
+const OC_BADGE = {ok:"", kontro:" · 🤔", zb:" · 🍭"};
+const ocFromAi = t => { const s=norm(String(t||"")); return s.includes("niepotrzebn")||s.includes("zachciank") ? "zb" : s.includes("kontrowersyjn") ? "kontro" : "ok"; };
+const ocFromDict = sub => (sub==="Niezdrowe jedzenie"||sub==="Alkohol") ? "zb" : "ok";
 
 /* ---------- konta i przychody ---------- */
 const catIcon = e => e.inc ? "💰" : (CATS[e.cat] ? CATS[e.cat].icon : "📦");
@@ -447,22 +499,28 @@ function parseText(raw){
 }
 
 /* ================= KATEGORYZACJA ================= */
+function validHit(h){
+  if(!h || !CATS[h[0]]) return null;
+  const sub = CATS[h[0]].subs.includes(h[1]) ? h[1] : CATS[h[0]].subs[CATS[h[0]].subs.length-1];
+  return {cat:h[0], sub, source:"dict"};
+}
 function dictLookup(desc){
   const d = norm(desc);
   if(!d) return null;
-  if(LEARNED[d]) return {cat:LEARNED[d][0], sub:LEARNED[d][1], source:"dict"};
+  let v = validHit(LEARNED[d]); if(v) return v;
   const words = d.split(" ").filter(w=>w.length>=3);
   for(const dict of [LEARNED, BUILTIN]){
     // frazy wielowyrazowe
-    for(const key in dict){ if(key.includes(" ") && d.includes(key)) return {cat:dict[key][0], sub:dict[key][1], source:"dict"}; }
+    for(const key in dict){ if(key.includes(" ") && d.includes(key)){ v=validHit(dict[key]); if(v) return v; } }
     // dokładne słowo
-    for(const w of words){ if(dict[w]) return {cat:dict[w][0], sub:dict[w][1], source:"dict"}; }
+    for(const w of words){ if(dict[w]){ v=validHit(dict[w]); if(v) return v; } }
     // odmiana: prefiksy (żelki/żelków)
     for(const w of words){
       for(const key in dict){
         if(key.includes(" ")) continue;
-        if(key.length>=4 && w.length>=4 && (w.startsWith(key.slice(0,Math.min(key.length,5))) && Math.abs(w.length-key.length)<=3) && (w.startsWith(key)||key.startsWith(w)))
-          return {cat:dict[key][0], sub:dict[key][1], source:"dict"};
+        if(key.length>=4 && w.length>=4 && (w.startsWith(key.slice(0,Math.min(key.length,5))) && Math.abs(w.length-key.length)<=3) && (w.startsWith(key)||key.startsWith(w))){
+          v=validHit(dict[key]); if(v) return v;
+        }
       }
     }
   }
@@ -478,14 +536,16 @@ async function aiClassify(desc){
   if(!SET.apiKey) return null;
   const catList = Object.entries(CATS).map(([c,v])=>`- ${c} (podkategorie: ${v.subs.join(", ")})`).join("\n");
   const body = {
-    model:"claude-haiku-4-5-20251001", max_tokens:200,
+    model:"claude-haiku-4-5-20251001", max_tokens:250,
     messages:[{role:"user",content:
 `Przypisz polski wydatek do kategorii i podkategorii z listy.
 ${catList}
 
+Oceń też wydatek ("ocena"): "normalny" = zwykły potrzebny zakup; "kontrowersyjny" = dało się go łatwo uniknąć albo jest wątpliwy (np. płatny parking, dowóz jedzenia, dopłaty, gadżet); "niepotrzebny" = zachcianka, niezdrowe jedzenie, impulsywny zakup.
+
 Wydatek: "${desc}"
 
-Odpowiedz WYŁĄCZNIE poprawnym JSON, bez komentarza: {"kategoria":"...","podkategoria":"..."}`}]
+Odpowiedz WYŁĄCZNIE poprawnym JSON, bez komentarza: {"kategoria":"...","podkategoria":"...","ocena":"normalny"}`}]
   };
   const res = await fetch("https://api.anthropic.com/v1/messages",{
     method:"POST",
@@ -501,7 +561,7 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON, bez komentarza: {"kategoria":"...","podkat
   let cat = j.kategoria, sub = j.podkategoria;
   if(!CATS[cat]){ cat = Object.keys(CATS).find(c=>norm(c)===norm(cat||""))||"Inne"; }
   if(!CATS[cat].subs.includes(sub)){ sub = CATS[cat].subs.find(s=>norm(s)===norm(sub||""))||CATS[cat].subs[CATS[cat].subs.length-1]; }
-  return {cat, sub, source:"ai"};
+  return {cat, sub, oc:ocFromAi(j.ocena), source:"ai"};
 }
 
 /* ================= DODAWANIE ================= */
@@ -593,7 +653,7 @@ async function addEntry(){
     const e = { id:uid(), date:todayStr(dayOffset+p.dayOffset), ts:Date.now(), amount:Math.round(p.amount*100)/100, desc:p.desc, cat:"Inne", sub:"Inne", src:"none", acc:SET.accounts[0].id };
     if(income){ e.inc = true; e.cat = "Przychód"; e.sub = ""; entries.push(e); continue; }
     const hit = dictLookup(p.desc);
-    if(hit){ e.cat=hit.cat; e.sub=hit.sub; e.src="dict"; } else unknown.push(e);
+    if(hit){ e.cat=hit.cat; e.sub=hit.sub; e.src="dict"; e.oc=ocFromDict(hit.sub); } else unknown.push(e);
     entries.push(e);
   }
   if(unknown.length && SET.apiKey && navigator.onLine){
@@ -601,7 +661,7 @@ async function addEntry(){
     for(const e of unknown){
       try{
         const ai = await aiClassify(e.desc);
-        if(ai){ e.cat=ai.cat; e.sub=ai.sub; e.src="ai"; learn(e.desc, ai.cat, ai.sub); }
+        if(ai){ e.cat=ai.cat; e.sub=ai.sub; e.oc=ai.oc; e.src="ai"; learn(e.desc, ai.cat, ai.sub); }
       }catch(ex){ e.src="fail"; }
     }
     $("addBtn").disabled = false; setMode(addMode);
@@ -629,7 +689,9 @@ function renderConfirm(){
     </div>
     ${e.inc ? "" : `<div class="selrow"><select data-cat="${i}"></select><select data-sub="${i}"></select></div>`}
     ${multiAcc ? `<div class="selrow accsel"><select data-acc="${i}"></select></div>` : ""}
-    ${e.zb ? `<div class="zb-note">🍭 Ocena AI: zachcianka — tego raczej nie potrzebowałeś.</div>` : ""}
+    ${e.inc ? "" : `<div class="selrow accsel"><select data-oc="${i}"></select></div>`}
+    ${!e.inc && ocOf(e)==="zb" ? `<div class="zb-note">🍭 Ocena AI: tego raczej nie potrzebowałeś.</div>` : ""}
+    ${!e.inc && ocOf(e)==="kontro" ? `<div class="zb-note" style="color:var(--warn)">🤔 Ocena AI: kontrowersyjny wydatek — dało się go pewnie uniknąć.</div>` : ""}
     <div class="cc-src">${e.inc ? "💰 Zapisane jako przychód." : SRC_TXT[e.src]}</div>
   </div>`).join("") + `<button class="cc-ok" id="ccOk">OK, ${pending.length>1?"wszystko ":""}się zgadza</button>`;
   pending.forEach((e,i)=>{
@@ -654,6 +716,11 @@ function renderConfirm(){
     if(as){
       as.innerHTML = SET.accounts.map(a=>`<option value="${a.id}" ${accOf(e)===a.id?"selected":""}>${e.inc?"na konto":"z konta"}: ${esc(a.name)}</option>`).join("");
       as.addEventListener("change",()=>{ e.acc = as.value; save("bw_expenses",EXP); renderAll(); });
+    }
+    const os = area.querySelector(`select[data-oc="${i}"]`);
+    if(os){
+      os.innerHTML = Object.keys(OC_LABEL).map(k=>`<option value="${k}" ${ocOf(e)===k?"selected":""}>${OC_LABEL[k]}</option>`).join("");
+      os.addEventListener("change",()=>{ e.oc = os.value; delete e.zb; save("bw_expenses",EXP); renderAll(); });
     }
     area.querySelector(`button[data-del="${i}"]`).addEventListener("click",()=>{
       EXP = EXP.filter(x=>x.id!==e.id);
@@ -695,10 +762,10 @@ ${catList}
 Zasady:
 - kwoty w złotych, po uwzględnieniu rabatów; pomiń kaucje, punkty lojalnościowe i sumę końcową
 - nazwy pozycji krótko i po polsku (np. "mleko" zamiast "MLEKO UHT 3,2% 1L")
-- dla każdej pozycji oceń "zbedne": true jeśli to zachcianka, niezdrowe jedzenie albo zakup, bez którego można się obejść (słodycze, lody, chipsy, słodkie napoje, alkohol, gadżety); false jeśli to normalny, potrzebny zakup
+- dla każdej pozycji podaj "ocena": "normalny" = potrzebny zwykły zakup; "kontrowersyjny" = dało się go łatwo uniknąć albo wątpliwy (płatny parking, dopłaty, drobne gadżety); "niepotrzebny" = zachcianka, niezdrowe jedzenie, impulsywny zakup (słodycze, lody, chipsy, słodkie napoje, alkohol)
 
 Odpowiedz WYŁĄCZNIE poprawnym JSON, bez komentarza:
-{"pozycje":[{"nazwa":"...","kwota":12.5,"kategoria":"...","podkategoria":"...","zbedne":false}]}`}
+{"pozycje":[{"nazwa":"...","kwota":12.5,"kategoria":"...","podkategoria":"...","ocena":"normalny"}]}`}
     ]}]
   };
   const res = await fetch("https://api.anthropic.com/v1/messages",{
@@ -718,7 +785,7 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON, bez komentarza:
     let cat = p.kategoria, sub = p.podkategoria;
     if(!CATS[cat]) cat = Object.keys(CATS).find(c=>norm(c)===norm(cat||"")) || "Inne";
     if(!CATS[cat].subs.includes(sub)) sub = CATS[cat].subs.find(s=>norm(s)===norm(sub||"")) || CATS[cat].subs[CATS[cat].subs.length-1];
-    out.push({nazwa:String(p.nazwa).toLowerCase(), kwota, cat, sub, zb:!!p.zbedne});
+    out.push({nazwa:String(p.nazwa).toLowerCase(), kwota, cat, sub, oc:ocFromAi(p.ocena!==undefined?p.ocena:(p.zbedne?"niepotrzebny":"normalny"))});
   }
   return out;
 }
@@ -737,12 +804,12 @@ async function handleImage(file){
     const dataUrl = await resizeImage(file, 1400);
     const items = await aiReceipt(dataUrl.split(",")[1]);
     if(!items.length) throw new Error("nie znalazłem pozycji na zdjęciu");
-    const entries = items.map(it=>({id:uid(), date:todayStr(), ts:Date.now(), amount:Math.round(it.kwota*100)/100, desc:it.nazwa, cat:it.cat, sub:it.sub, src:"ai", acc:SET.accounts[0].id, zb:it.zb}));
+    const entries = items.map(it=>({id:uid(), date:todayStr(), ts:Date.now(), amount:Math.round(it.kwota*100)/100, desc:it.nazwa, cat:it.cat, sub:it.sub, src:"ai", acc:SET.accounts[0].id, oc:it.oc}));
     for(const e of entries) learn(e.desc, e.cat, e.sub);
     EXP.push(...entries); save("bw_expenses",EXP);
     pending = entries;
     renderConfirm(); renderAll();
-    const zbn = entries.filter(e=>e.zb).length;
+    const zbn = entries.filter(e=>ocOf(e)!=="ok").length;
     toast("Z paragonu: "+entries.length+" "+plWydatki(entries.length)+" — razem "+zl(sum(entries))+(zbn?" (w tym "+zbn+" 🍭)":""));
   }catch(ex){
     err.textContent = "Nie udało się odczytać paragonu: "+ex.message;
@@ -784,7 +851,7 @@ function renderHead(){
 function expRow(e){
   return `<div class="exp-row" data-id="${e.id}">
     <div class="exp-dot" style="background:${catColor(e)}22">${catIcon(e)}</div>
-    <div class="exp-main"><div class="exp-desc">${esc(e.desc)}</div><div class="exp-cat">${e.inc?"Przychód":e.cat+" · "+e.sub}${e.zb?" · 🍭":""} · ${esc(accName(accOf(e)))}</div></div>
+    <div class="exp-main"><div class="exp-desc">${esc(e.desc)}</div><div class="exp-cat">${e.inc?"Przychód":e.cat+" · "+e.sub}${e.inc?"":OC_BADGE[ocOf(e)]} · ${esc(accName(accOf(e)))}</div></div>
     <div class="exp-amt${e.inc?" amt-inc":""}">${e.inc?"+":""}${zl(e.amount)}</div>
   </div>`;
 }
@@ -812,9 +879,17 @@ function renderHistory(){
 }
 
 /* ---------- wykresy ---------- */
+let chartFilter = "";
 function renderCharts(){
   $("cLabel").textContent = MONTHS[viewMonth.m]+" "+viewMonth.y;
-  const list = expInMonth(viewMonth.y, viewMonth.m).filter(e=>!e.inc);
+  const csel = $("chartCat");
+  if(!csel.dataset.filled){
+    csel.innerHTML = `<option value="">📊 Wszystkie kategorie</option>`+Object.keys(CATS).map(c=>`<option value="${c}">${CATS[c].icon} ${c}</option>`).join("");
+    csel.dataset.filled = "1";
+    csel.addEventListener("change",()=>{ chartFilter = csel.value; renderCharts(); });
+  }
+  csel.value = chartFilter;
+  const list = expInMonth(viewMonth.y, viewMonth.m).filter(e=>!e.inc && (!chartFilter || e.cat===chartFilter));
   const nDays = daysInMonth(viewMonth.y, viewMonth.m);
   const now = new Date();
   const isCur = viewMonth.y===now.getFullYear() && viewMonth.m===now.getMonth();
@@ -828,13 +903,13 @@ function renderCharts(){
   $("tAvg").textContent = total? zl0(total/Math.max(elapsed,1)) : "—";
   $("tMax").textContent = total? zl0(perDay[maxIdx]) : "—";
   $("tMaxDay").textContent = total? fmtDate(monthKey(viewMonth.y,viewMonth.m)+"-"+String(maxIdx+1).padStart(2,"0")) : "";
-  const zbSum = sum(list.filter(e=>e.zb || e.sub==="Niezdrowe jedzenie"));
+  const zbSum = sum(list.filter(e=>ocOf(e)!=="ok"));
   $("tZb").textContent = total? zl0(zbSum) : "—";
 
   /* --- słupki --- */
   const W=360,H=180,padL=42,padB=20,padT=12;
   const plotW=W-padL-8, plotH=H-padT-padB;
-  const dailyLimit = SET.budgetTotal>0 ? SET.budgetTotal/nDays : null;
+  const dailyLimit = (!chartFilter && SET.budgetTotal>0) ? SET.budgetTotal/nDays : null;
   const yMax = Math.max(maxV, dailyLimit||0)*1.12;
   const bw = Math.max(2, plotW/nDays - 2.2);
   let bars="", grid="", hasOver=false;
@@ -849,7 +924,7 @@ function renderCharts(){
     const y = padT + plotH - h;
     const over = dailyLimit!==null && perDay[i] > dailyLimit;
     if(over) hasOver=true;
-    const col = over ? "var(--crit)" : "var(--accent)";
+    const col = over ? "var(--crit)" : (chartFilter && CATS[chartFilter] ? CATS[chartFilter].color : "var(--accent)");
     if(perDay[i]>0){
       const r = Math.min(3, bw/2, h/2);
       bars += `<path d="M${x},${(padT+plotH).toFixed(1)} L${x},${(y+r).toFixed(1)} Q${x},${y.toFixed(1)} ${(x+r).toFixed(1)},${y.toFixed(1)} L${(x+bw-r).toFixed(1)},${y.toFixed(1)} Q${(x+bw).toFixed(1)},${y.toFixed(1)} ${(x+bw).toFixed(1)},${(y+r).toFixed(1)} L${(x+bw).toFixed(1)},${(padT+plotH).toFixed(1)} Z" fill="${col}"/>`;
@@ -870,9 +945,11 @@ function renderCharts(){
   $("barChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wydatki dzienne">
     ${grid}<line x1="${padL}" y1="${padT+plotH}" x2="${W-8}" y2="${padT+plotH}" stroke="var(--baseline)" stroke-width="1"/>
     ${bars}${limitLine}${ticks}</svg>`;
-  $("barNote").textContent = dailyLimit!==null
-    ? (hasOver ? "🔴 czerwony słupek = dzień powyżej dziennego limitu ("+zl0(dailyLimit)+") · żółta linia = limit" : "żółta przerywana linia = dzienny limit ("+zl0(dailyLimit)+")")
-    : "Ustaw budżet miesięczny, a pokażę, które dni przekraczają dzienny limit.";
+  $("barNote").textContent = chartFilter
+    ? "Wydatki dzienne tylko z kategorii: "+chartFilter
+    : (dailyLimit!==null
+      ? (hasOver ? "🔴 czerwony słupek = dzień powyżej dziennego limitu ("+zl0(dailyLimit)+") · żółta linia = limit" : "żółta przerywana linia = dzienny limit ("+zl0(dailyLimit)+")")
+      : "Ustaw budżet miesięczny, a pokażę, które dni przekraczają dzienny limit.");
   $("barDetail").textContent = "Dotknij słupka, aby zobaczyć szczegóły";
   document.querySelectorAll(".barhit").forEach(r=>{
     r.addEventListener("click",()=>{
@@ -885,33 +962,51 @@ function renderCharts(){
     });
   });
 
-  /* --- donut --- */
-  const byCat = {};
-  for(const e of list){ byCat[e.cat]=(byCat[e.cat]||0)+e.amount; }
-  const entries = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  /* --- donut: kategorie albo wnętrze jednej kategorii --- */
+  const groups = {};
+  for(const e of list){ const k = chartFilter ? (e.sub||"Inne") : e.cat; groups[k]=(groups[k]||0)+e.amount; }
+  let entries = Object.entries(groups).sort((a,b)=>b[1]-a[1]);
+  if(entries.length>8){
+    const rest = entries.slice(7).reduce((t,x)=>t+x[1],0);
+    entries = [...entries.slice(0,7), ["Pozostałe", rest]];
+  }
+  const DPAL = ["#3987e5","#199e70","#c98500","#008300","#9085e9","#e66767","#d55181","#d95926"];
+  const colorFor = (name,i)=> name==="Pozostałe" ? "#898781" : (chartFilter ? DPAL[i%DPAL.length] : (CATS[name]?CATS[name].color:"#898781"));
+  $("donutTitle").textContent = chartFilter ? "W środku: "+chartFilter : "Kategorie";
+  $("donutNote").textContent = !entries.length ? "" : (chartFilter ? "Wybierz „Wszystkie kategorie” u góry, żeby wrócić." : "Dotknij kategorii, żeby zajrzeć do środka.");
   if(!entries.length){
     $("donutChart").innerHTML = `<div class="empty">Brak danych w tym miesiącu.</div>`;
     $("donutLegend").innerHTML = "";
   } else {
     const R=54, CX=90, CY=90, SW=24, C=2*Math.PI*R;
     let off=0, segs="";
-    for(const [cat,val] of entries){
+    entries.forEach(([name,val],i)=>{
       const frac = val/total;
       const len = Math.max(0, frac*C - 2.5);
-      segs += `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${CATS[cat].color}" stroke-width="${SW}"
+      segs += `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${colorFor(name,i)}" stroke-width="${SW}"
         stroke-dasharray="${len.toFixed(1)} ${(C-len).toFixed(1)}" stroke-dashoffset="${(-off*C+C/4).toFixed(1)}" />`;
       off += frac;
-    }
-    $("donutChart").innerHTML = `<svg viewBox="0 0 180 180" style="max-width:210px;margin:0 auto" role="img" aria-label="Podział na kategorie">
+    });
+    $("donutChart").innerHTML = `<svg viewBox="0 0 180 180" style="max-width:210px;margin:0 auto" role="img" aria-label="Podział wydatków">
       ${segs}
       <text x="${CX}" y="${CY-3}" text-anchor="middle" font-size="17" font-weight="700" fill="var(--ink)">${zl0(total)}</text>
       <text x="${CX}" y="${CY+15}" text-anchor="middle" font-size="9.5" fill="var(--muted)">razem</text></svg>`;
-    $("donutLegend").innerHTML = entries.map(([cat,val])=>`<div class="leg-row">
-      <span class="leg-swatch" style="background:${CATS[cat].color}"></span>
-      <span class="leg-name">${CATS[cat].icon} ${cat}</span>
+    $("donutLegend").innerHTML = entries.map(([name,val],i)=>`<div class="leg-row"${!chartFilter&&CATS[name]?` data-drill="${name}" style="cursor:pointer"`:""}>
+      <span class="leg-swatch" style="background:${colorFor(name,i)}"></span>
+      <span class="leg-name">${!chartFilter&&CATS[name]?CATS[name].icon+" ":""}${name}</span>
       <span class="leg-val">${zl(val)}</span>
       <span class="leg-pct">${Math.round(val/total*100)}%</span></div>`).join("");
+    document.querySelectorAll("#donutLegend [data-drill]").forEach(r=>r.addEventListener("click",()=>{ chartFilter = r.dataset.drill; renderCharts(); window.scrollTo(0,0); }));
   }
+
+  /* --- ocena zakupów --- */
+  const ocData = [["ok","✅ Normalne","var(--good)"],["kontro","🤔 Kontrowersyjne","var(--warn)"],["zb","🍭 Niepotrzebne","var(--crit)"]];
+  $("ocList").innerHTML = total ? ocData.map(([k,label,col])=>{
+    const v = sum(list.filter(e=>ocOf(e)===k));
+    const pct = total ? v/total*100 : 0;
+    return `<div class="bud-row"><div class="bud-top"><span class="bud-name">${label}</span><span class="bud-nums"><b>${zl(v)}</b> · ${Math.round(pct)}%</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div></div>`;
+  }).join("") : `<div class="empty">Brak danych w tym miesiącu.</div>`;
 
   /* --- top --- */
   const top = [...list].sort((a,b)=>b.amount-a.amount).slice(0,5);
@@ -1088,6 +1183,62 @@ function openFixedModal(id){
 }
 $("addFixBtn").addEventListener("click",()=>openFixedModal(null));
 
+/* ---------- dłużnicy ---------- */
+function renderDebts(){
+  const ds = SET.debts || [];
+  $("debtList").innerHTML = ds.length ? ds.map(d=>`<div class="acc-row" data-debt="${d.id}">
+    <span class="acc-name">${d.dir==="in"?"👤→🫵 ":"🫵→👤 "}${esc(d.name)}${d.note?`<div class="exp-cat">${esc(d.note)}</div>`:""}</span>
+    <span class="acc-val" style="color:${d.dir==="in"?"var(--good)":"var(--crit)"}">${d.dir==="in"?"+":"−"}${zl(d.amount)}</span>
+    <button class="btn" data-settle="${d.id}" style="padding:8px 10px;font-size:13px">Rozliczone ✓</button>
+  </div>`).join("") : `<div class="empty">Zapisz, kto wisi Ci pieniądze albo komu Ty wisisz.</div>`;
+  const inS = ds.filter(d=>d.dir==="in").reduce((t,d)=>t+d.amount,0);
+  const outS = ds.filter(d=>d.dir==="out").reduce((t,d)=>t+d.amount,0);
+  $("debtSum").innerHTML = ds.length ? `ludzie wiszą Ci: <b style="color:var(--good)">&nbsp;${zl0(inS)}</b>&nbsp;·&nbsp; Ty wisisz: <b style="color:var(--crit)">&nbsp;${zl0(outS)}</b>` : "";
+  document.querySelectorAll("#debtList [data-settle]").forEach(b=>b.addEventListener("click",ev=>{ ev.stopPropagation(); settleDebt(b.dataset.settle); }));
+  document.querySelectorAll("#debtList .acc-row").forEach(r=>r.addEventListener("click",()=>openDebtModal(r.dataset.debt)));
+}
+function settleDebt(id){
+  const d = SET.debts.find(x=>x.id===id); if(!d) return;
+  if(!confirm(d.dir==="in" ? esc(d.name)+" oddał(a) Ci "+zl(d.amount)+"? Dodam to jako przychód." : "Oddałeś "+esc(d.name)+" "+zl(d.amount)+"? Dodam to jako wydatek.")) return;
+  const e = {id:uid(), date:todayStr(), ts:Date.now(), amount:d.amount, desc:(d.dir==="in"?"zwrot długu od ":"oddany dług: ")+d.name, acc:SET.accounts[0].id};
+  if(d.dir==="in"){ e.inc = true; e.cat = "Przychód"; e.sub = ""; }
+  else { e.cat = "Inne"; e.sub = "Pożyczki"; e.src = "dict"; e.oc = "ok"; }
+  EXP.push(e);
+  SET.debts = SET.debts.filter(x=>x.id!==id);
+  save("bw_expenses",EXP); save("bw_settings",SET);
+  renderAll(); toast("Rozliczone i zapisane w historii ✅");
+}
+function openDebtModal(id){
+  const d = id ? SET.debts.find(x=>x.id===id) : null;
+  openModal(`<h3>${d ? "Dług" : "Nowy dług"}</h3>
+    <div class="m-row"><select id="dbDir">
+      <option value="in" ${d&&d.dir==="in"?"selected":""}>👤 ktoś wisi MI pieniądze</option>
+      <option value="out" ${d&&d.dir==="out"?"selected":""}>🫵 JA wiszę komuś</option>
+    </select></div>
+    <div class="m-row"><input type="text" id="dbName" placeholder="kto? (np. Kuba)" value="${d?esc(d.name):""}"></div>
+    <div class="m-row"><input type="number" id="dbAmt" inputmode="decimal" step="0.01" placeholder="ile (zł)" value="${d?d.amount:""}"></div>
+    <div class="m-row"><input type="text" id="dbNote" placeholder="za co? (opcjonalnie)" value="${d&&d.note?esc(d.note):""}"></div>
+    <div class="set-note">Gdy dług zostanie spłacony, dotknij „Rozliczone" — wpis doda się do historii automatycznie.</div>
+    <div class="m-actions">${d?'<button class="btn danger" id="dbDel">Usuń</button>':""}<button class="btn" id="dbCancel">Anuluj</button><button class="btn primary" id="dbSave">Zapisz</button></div>`);
+  $("dbSave").addEventListener("click",()=>{
+    const name = $("dbName").value.trim();
+    const amt = parseFloat(String($("dbAmt").value).replace(",","."))||0;
+    if(!name || amt<=0){ alert("Podaj, kto i ile."); return; }
+    const rec = {name, amount:amt, dir:$("dbDir").value, note:$("dbNote").value.trim()};
+    if(d) Object.assign(d, rec);
+    else SET.debts.push(Object.assign({id:uid()}, rec));
+    save("bw_settings",SET); closeModal(); renderAll(); toast("Zapisano");
+  });
+  const del = $("dbDel");
+  if(del) del.addEventListener("click",()=>{
+    if(!confirm("Usunąć bez zapisywania w historii?")) return;
+    SET.debts = SET.debts.filter(x=>x.id!==d.id);
+    save("bw_settings",SET); closeModal(); renderAll();
+  });
+  $("dbCancel").addEventListener("click",closeModal);
+}
+$("addDebtBtn").addEventListener("click",()=>openDebtModal(null));
+
 /* ---------- edycja wpisu ---------- */
 function openEditModal(id){
   const e = EXP.find(x=>x.id===id);
@@ -1097,6 +1248,7 @@ function openEditModal(id){
     <div class="m-row"><input type="text" id="eDesc" value="${esc(e.desc)}"></div>
     ${e.inc?"":`<div class="m-row"><select id="eCat"></select><select id="eSub"></select></div>`}
     <div class="m-row"><select id="eAcc"></select></div>
+    ${e.inc?"":`<div class="m-row"><select id="eOc"></select></div>`}
     <div class="m-actions"><button class="btn danger" id="eDel">Usuń</button><button class="btn" id="eCancel">Anuluj</button><button class="btn primary" id="eSave">Zapisz</button></div>`);
   if(!e.inc){
     fillCatSelect($("eCat"), e.cat);
@@ -1107,6 +1259,7 @@ function openEditModal(id){
     });
   }
   $("eAcc").innerHTML = SET.accounts.map(a=>`<option value="${a.id}" ${accOf(e)===a.id?"selected":""}>${e.inc?"na konto":"z konta"}: ${esc(a.name)}</option>`).join("");
+  if(!e.inc) $("eOc").innerHTML = Object.keys(OC_LABEL).map(k=>`<option value="${k}" ${ocOf(e)===k?"selected":""}>${OC_LABEL[k]}</option>`).join("");
   $("eSave").addEventListener("click",()=>{
     const oldCat=e.cat, oldSub=e.sub;
     e.amount = Math.round((parseFloat(String($("eAmt").value).replace(",","."))||e.amount)*100)/100;
@@ -1116,6 +1269,7 @@ function openEditModal(id){
     if(!e.inc){
       e.cat = catFromOption($("eCat").value);
       e.sub = $("eSub").value;
+      e.oc = $("eOc").value; delete e.zb;
       if(e.cat!==oldCat || e.sub!==oldSub) learn(e.desc, e.cat, e.sub);
     }
     save("bw_expenses",EXP); closeModal(); renderAll(); toast("Zapisano");
@@ -1159,14 +1313,15 @@ $("testKeyBtn").addEventListener("click",async ()=>{
   }
 });
 $("exportBtn").addEventListener("click",()=>{
-  const data = {app:"budzet",version:2,exported:new Date().toISOString(),expenses:EXP,settings:{budgetTotal:SET.budgetTotal,budgetCats:SET.budgetCats,accounts:SET.accounts,fixed:SET.fixed,fixedPaid:SET.fixedPaid},learned:LEARNED};
+  const data = {app:"budzet",version:3,exported:new Date().toISOString(),expenses:EXP,settings:{budgetTotal:SET.budgetTotal,budgetCats:SET.budgetCats,accounts:SET.accounts,fixed:SET.fixed,fixedPaid:SET.fixedPaid,debts:SET.debts},learned:LEARNED};
   downloadFile("budzet-kopia-"+todayStr()+".json", JSON.stringify(data,null,1), "application/json");
   toast("Zapisano kopię danych");
 });
 $("csvBtn").addEventListener("click",()=>{
-  let csv = "﻿data;typ;kwota;kategoria;podkategoria;konto;zachcianka;opis\n";
+  let csv = "﻿data;typ;kwota;kategoria;podkategoria;konto;ocena;opis\n";
+  const ocCsv = {ok:"normalny",kontro:"kontrowersyjny",zb:"niepotrzebny"};
   for(const e of [...EXP].sort((a,b)=>a.date.localeCompare(b.date))){
-    csv += `${e.date};${e.inc?"przychód":"wydatek"};${String(e.amount).replace(".",",")};${e.inc?"":e.cat};${e.inc?"":e.sub};${accName(accOf(e))};${e.zb?"tak":""};"${e.desc.replace(/"/g,'""')}"\n`;
+    csv += `${e.date};${e.inc?"przychód":"wydatek"};${String(e.amount).replace(".",",")};${e.inc?"":e.cat};${e.inc?"":e.sub};${accName(accOf(e))};${e.inc?"":ocCsv[ocOf(e)]};"${e.desc.replace(/"/g,'""')}"\n`;
   }
   downloadFile("budzet-"+todayStr()+".csv", csv, "text/csv");
 });
@@ -1192,6 +1347,7 @@ $("importFile").addEventListener("change",ev=>{
         if(d.settings.accounts && d.settings.accounts.length) SET.accounts = d.settings.accounts;
         SET.fixed = d.settings.fixed||[];
         SET.fixedPaid = d.settings.fixedPaid||{};
+        SET.debts = d.settings.debts||[];
       }
       if(d.learned) LEARNED = d.learned;
       saveAll(); renderAll(); toast("Wczytano kopię ✅");
@@ -1203,7 +1359,7 @@ $("wipeBtn").addEventListener("click",()=>{
   if(!confirm("Na pewno usunąć WSZYSTKIE dane? Tego nie da się cofnąć.")) return;
   if(!confirm("Ostatnie ostrzeżenie — usunąć wszystko?")) return;
   EXP=[]; LEARNED={};
-  SET={apiKey:"",budgetTotal:0,budgetCats:{},accounts:[{id:"a1",name:"Gotówka",start:0},{id:"a2",name:"Konto 1",start:0},{id:"a3",name:"Konto 2",start:0},{id:"a4",name:"Bank",start:0}],fixed:[],fixedPaid:{}};
+  SET={apiKey:"",budgetTotal:0,budgetCats:{},accounts:[{id:"a1",name:"Gotówka",start:0},{id:"a2",name:"Konto 1",start:0},{id:"a3",name:"Konto 2",start:0},{id:"a4",name:"Bank",start:0}],fixed:[],fixedPaid:{},debts:[]};
   saveAll(); renderAll(); toast("Dane usunięte");
 });
 function renderLearned(){
@@ -1239,7 +1395,7 @@ $("cPrev").addEventListener("click",()=>shiftMonth(-1));
 $("cNext").addEventListener("click",()=>shiftMonth(1));
 
 function renderAll(){
-  renderHead(); renderToday(); renderHistory(); renderCharts(); renderWallet(); renderFixed(); renderBudget(); renderLearned();
+  renderHead(); renderToday(); renderHistory(); renderCharts(); renderWallet(); renderFixed(); renderDebts(); renderBudget(); renderLearned();
 }
 renderAll();
 
