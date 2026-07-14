@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0d0d0d">
+<title>Budżet</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{
+  --page:#0d0d0d; --surface:#1a1a19; --surface2:#232322;
+  --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+  --accent:#3987e5;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--page);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overscroll-behavior-y:contain}
+body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{font-weight:650}
+.screen{display:none;padding:16px 16px 24px;max-width:560px;margin:0 auto}
+.screen.active{display:block}
+/* ---------- header ---------- */
+.apphead{padding:18px 16px 4px;max-width:560px;margin:0 auto;display:flex;align-items:baseline;justify-content:space-between}
+.apphead .title{font-size:20px;font-weight:700}
+.apphead .month-total{font-size:14px;color:var(--ink2)}
+.apphead .month-total b{color:var(--ink);font-size:16px}
+/* ---------- cards ---------- */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px}
+.card h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;font-weight:600}
+/* ---------- add screen ---------- */
+.bigInput{width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:16px;font-size:18px;color:var(--ink);resize:none;line-height:1.4;min-height:64px}
+.bigInput:focus{outline:none;border-color:var(--accent)}
+.bigInput::placeholder{color:var(--muted)}
+.addBtn{width:100%;margin-top:10px;background:var(--accent);border:none;border-radius:14px;padding:15px;font-size:17px;font-weight:650;color:#fff;cursor:pointer}
+.addBtn:active{opacity:.8}
+.addBtn:disabled{opacity:.5}
+.hint{color:var(--muted);font-size:13px;margin:10px 4px 0;text-align:center}
+.errmsg{color:var(--serious);font-size:14px;margin:10px 4px 0;text-align:center;display:none}
+/* confirm card */
+#confirmCard{display:none;margin-top:14px;border-color:var(--accent)}
+#confirmCard .cc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+#confirmCard .cc-amount{font-size:22px;font-weight:700}
+#confirmCard .cc-desc{color:var(--ink2);font-size:15px}
+#confirmCard .cc-src{font-size:12px;color:var(--muted);margin-top:8px}
+.selrow{display:flex;gap:8px;margin-top:10px}
+.selrow select{flex:1;min-width:0;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:15px}
+.cc-ok{margin-top:12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;font-size:15px;font-weight:600;cursor:pointer}
+/* today list */
+.exp-row{display:flex;align-items:center;gap:10px;padding:11px 2px;border-bottom:1px solid var(--grid);cursor:pointer}
+.exp-row:last-child{border-bottom:none}
+.exp-dot{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.exp-main{flex:1;min-width:0}
+.exp-desc{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.exp-cat{font-size:12px;color:var(--muted)}
+.exp-amt{font-size:15px;font-weight:650;white-space:nowrap}
+.day-head{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);font-weight:600;padding:14px 2px 6px}
+.day-head b{color:var(--ink2)}
+.empty{color:var(--muted);text-align:center;padding:22px 0;font-size:14px}
+/* ---------- stat tiles ---------- */
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 12px 10px}
+.tile .t-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.tile .t-val{font-size:17px;font-weight:700;margin-top:4px;white-space:nowrap}
+.tile .t-sub{font-size:11px;color:var(--muted);margin-top:2px}
+/* ---------- month nav ---------- */
+.monthnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.monthnav button{background:var(--surface);border:1px solid var(--border);border-radius:10px;width:40px;height:40px;font-size:18px;color:var(--ink2);cursor:pointer}
+.monthnav .mn-label{font-size:17px;font-weight:650;text-transform:capitalize}
+/* ---------- charts ---------- */
+.chartbox svg{width:100%;height:auto;display:block}
+#barDetail{font-size:13px;color:var(--ink2);text-align:center;padding-top:10px;min-height:20px}
+.legend{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.leg-row{display:flex;align-items:center;gap:9px;font-size:14px}
+.leg-swatch{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+.leg-name{flex:1;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.leg-val{font-weight:600}
+.leg-pct{color:var(--muted);font-size:12px;width:38px;text-align:right}
+.chart-note{font-size:12px;color:var(--muted);margin-top:10px;text-align:center}
+/* ---------- budget ---------- */
+.bud-row{padding:12px 0;border-bottom:1px solid var(--grid)}
+.bud-row:last-child{border-bottom:none}
+.bud-top{display:flex;justify-content:space-between;align-items:center;font-size:15px;margin-bottom:7px}
+.bud-top .bud-name{display:flex;align-items:center;gap:8px}
+.bud-nums{font-size:13px;color:var(--ink2)}
+.bud-nums b{color:var(--ink)}
+.bar-track{height:10px;background:var(--surface2);border-radius:5px;overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;min-width:2px;transition:width .3s}
+.bud-status{font-size:12px;margin-top:6px;display:flex;align-items:center;gap:5px}
+.bud-edit{background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;padding:4px}
+.bigbar{margin:6px 0 4px}
+.bigbar .bar-track{height:16px;border-radius:8px}
+#budHero{font-size:30px;font-weight:750;letter-spacing:-.01em}
+#budHeroSub{color:var(--muted);font-size:13px;margin-top:2px;margin-bottom:10px}
+/* ---------- settings ---------- */
+.set-row{display:flex;flex-direction:column;gap:8px;padding:6px 0}
+.set-row label{font-size:13px;color:var(--ink2)}
+.set-row input[type=password],.set-row input[type=text],.set-row input[type=number]{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;font-size:15px;width:100%}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.btn{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px 14px;font-size:14px;font-weight:600;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.danger{color:var(--crit);border-color:rgba(208,59,59,.4)}
+.set-note{font-size:12px;color:var(--muted);line-height:1.5}
+#apiStatus{font-size:13px;margin-top:4px}
+.learned-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--grid);font-size:14px}
+.learned-row:last-child{border-bottom:none}
+.learned-row .lw{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.learned-row .lc{color:var(--muted);font-size:12px;white-space:nowrap}
+.learned-row button{background:none;border:none;color:var(--crit);font-size:16px;cursor:pointer;padding:2px 6px}
+#installBtn{display:none}
+/* ---------- bottom nav ---------- */
+nav{position:fixed;bottom:0;left:0;right:0;background:rgba(26,26,25,.96);backdrop-filter:blur(12px);border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:50}
+nav button{flex:1;background:none;border:none;padding:9px 0 7px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:10.5px;font-weight:600;cursor:pointer}
+nav button .nico{font-size:21px;line-height:1}
+nav button.active{color:var(--accent)}
+/* ---------- modal ---------- */
+#modalBg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:100;align-items:flex-end;justify-content:center}
+#modalBg.open{display:flex}
+#modal{background:var(--surface);border-radius:20px 20px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));width:100%;max-width:560px;border:1px solid var(--border);border-bottom:none}
+#modal h3{font-size:16px;color:var(--ink);text-transform:none;letter-spacing:0;margin-bottom:14px}
+.m-row{display:flex;gap:8px;margin-bottom:10px}
+.m-row>*{flex:1;min-width:0}
+.m-row input,.m-row select{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;font-size:15px;width:100%}
+.m-actions{display:flex;gap:8px;margin-top:14px}
+.m-actions .btn{flex:1;text-align:center;padding:13px}
+/* toast */
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom));background:var(--surface2);border:1px solid var(--border);color:var(--ink);padding:10px 18px;border-radius:12px;font-size:14px;z-index:200;display:none;max-width:88vw;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="apphead">
+  <div class="title" id="headTitle">Budżet</div>
+  <div class="month-total" id="headTotal"></div>
+</div>
+
+<!-- ============ DODAJ ============ -->
+<section class="screen active" id="scr-add">
+  <textarea class="bigInput" id="entryInput" rows="2" placeholder="np. 5 zł żelki&#10;(wpisz albo podyktuj)" enterkeyhint="done"></textarea>
+  <button class="addBtn" id="addBtn">Dodaj wydatek</button>
+  <div class="errmsg" id="addErr"></div>
+  <div class="hint">Podyktuj kwotę i co kupiłeś — kategorię dobiorę automatycznie.<br>Możesz dodać „wczoraj", np. „wczoraj 20 zł kino".</div>
+
+  <div class="card" id="confirmCard">
+    <div class="cc-head">
+      <div>
+        <div class="cc-amount" id="ccAmount"></div>
+        <div class="cc-desc" id="ccDesc"></div>
+      </div>
+      <div style="font-size:26px" id="ccIcon"></div>
+    </div>
+    <div class="selrow">
+      <select id="ccCat"></select>
+      <select id="ccSub"></select>
+    </div>
+    <div class="cc-src" id="ccSrc"></div>
+    <button class="cc-ok" id="ccOk">OK, zgadza się</button>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3>Dzisiaj <span id="todaySum" style="float:right;color:var(--ink);font-size:14px"></span></h3>
+    <div id="todayList"></div>
+  </div>
+</section>
+
+<!-- ============ HISTORIA ============ -->
+<section class="screen" id="scr-history">
+  <div class="monthnav">
+    <button id="hPrev">‹</button>
+    <div class="mn-label" id="hLabel"></div>
+    <button id="hNext">›</button>
+  </div>
+  <div class="card">
+    <div id="historyList"></div>
+  </div>
+</section>
+
+<!-- ============ WYKRESY ============ -->
+<section class="screen" id="scr-charts">
+  <div class="monthnav">
+    <button id="cPrev">‹</button>
+    <div class="mn-label" id="cLabel"></div>
+    <button id="cNext">›</button>
+  </div>
+  <div class="tiles">
+    <div class="tile"><div class="t-label">Suma</div><div class="t-val" id="tSum">—</div></div>
+    <div class="tile"><div class="t-label">Śr. / dzień</div><div class="t-val" id="tAvg">—</div></div>
+    <div class="tile"><div class="t-label">Rekord dnia</div><div class="t-val" id="tMax">—</div><div class="t-sub" id="tMaxDay"></div></div>
+  </div>
+  <div class="card chartbox">
+    <h3>Wydatki dzienne</h3>
+    <div id="barChart"></div>
+    <div id="barDetail">Dotknij słupka, aby zobaczyć szczegóły</div>
+    <div class="chart-note" id="barNote"></div>
+  </div>
+  <div class="card chartbox">
+    <h3>Kategorie</h3>
+    <div id="donutChart"></div>
+    <div class="legend" id="donutLegend"></div>
+  </div>
+  <div class="card">
+    <h3>Największe wydatki</h3>
+    <div id="topList"></div>
+  </div>
+</section>
+
+<!-- ============ BUDŻET ============ -->
+<section class="screen" id="scr-budget">
+  <div class="card">
+    <h3>Budżet miesięczny <button class="bud-edit" id="editTotalBtn" style="float:right">zmień</button></h3>
+    <div id="budHero"></div>
+    <div id="budHeroSub"></div>
+    <div class="bigbar"><div class="bar-track"><div class="bar-fill" id="budTotalFill"></div></div></div>
+    <div class="bud-status" id="budTotalStatus"></div>
+    <div class="bud-status" id="budPace"></div>
+  </div>
+  <div class="card">
+    <h3>Limity na kategorie</h3>
+    <div id="budCatList"></div>
+    <div class="set-note" style="margin-top:10px">Dotknij kategorii, żeby ustawić lub zmienić jej limit.</div>
+  </div>
+</section>
+
+<!-- ============ USTAWIENIA ============ -->
+<section class="screen" id="scr-settings">
+  <div class="card">
+    <h3>Sztuczna inteligencja</h3>
+    <div class="set-row">
+      <label>Klucz API Claude (z console.anthropic.com)</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." autocomplete="off">
+      <div class="btnrow">
+        <button class="btn primary" id="saveKeyBtn">Zapisz</button>
+        <button class="btn" id="testKeyBtn">Testuj połączenie</button>
+      </div>
+      <div id="apiStatus"></div>
+      <div class="set-note">Klucz jest zapisany wyłącznie na Twoim telefonie. AI jest pytane tylko wtedy, gdy słownik nie rozpozna wydatku — a odpowiedź zostaje zapamiętana, więc z czasem pytań jest coraz mniej.</div>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Kopia zapasowa</h3>
+    <div class="btnrow">
+      <button class="btn" id="exportBtn">Eksport danych</button>
+      <button class="btn" id="csvBtn">Eksport CSV</button>
+      <button class="btn" id="importBtn">Import</button>
+      <input type="file" id="importFile" accept=".json" style="display:none">
+    </div>
+    <div class="set-note" style="margin-top:10px">Dane mieszkają na telefonie. Raz na jakiś czas zrób eksport — plik możesz zachować np. na Dysku Google. Import przywraca dane z takiego pliku.</div>
+  </div>
+  <div class="card">
+    <h3>Nauczone słowa</h3>
+    <div id="learnedList"></div>
+    <div class="set-note" style="margin-top:8px">Rzeczy, których aplikacja nauczyła się z Twoich poprawek i odpowiedzi AI.</div>
+  </div>
+  <div class="card">
+    <h3>Aplikacja</h3>
+    <div class="btnrow">
+      <button class="btn primary" id="installBtn">📲 Zainstaluj na telefonie</button>
+      <button class="btn danger" id="wipeBtn">Usuń wszystkie dane</button>
+    </div>
+    <div class="set-note" style="margin-top:10px" id="installNote">Aby mieć aplikację na ekranie głównym: otwórz tę stronę w Chrome → menu ⋮ → „Dodaj do ekranu głównego".</div>
+  </div>
+</section>
+
+<nav>
+  <button data-scr="add" class="active"><span class="nico">✏️</span>Dodaj</button>
+  <button data-scr="history"><span class="nico">📋</span>Historia</button>
+  <button data-scr="charts"><span class="nico">📊</span>Wykresy</button>
+  <button data-scr="budget"><span class="nico">🎯</span>Budżet</button>
+  <button data-scr="settings"><span class="nico">⚙️</span>Więcej</button>
+</nav>
+
+<div id="modalBg"><div id="modal"></div></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ================= DANE ================= */
+const CATS = {
+  "Jedzenie":      {icon:"🍎", color:"#3987e5", subs:["Zakupy spożywcze","Niezdrowe jedzenie","Na mieście","Kawa","Alkohol","Inne"]},
+  "Transport":     {icon:"🚌", color:"#199e70", subs:["Paliwo","Bilety","Taxi / przejazdy","Auto","Inne"]},
+  "Dom":           {icon:"🏠", color:"#c98500", subs:["Rachunki","Czynsz","Wyposażenie","Chemia i środki","Inne"]},
+  "Rozrywka":      {icon:"🎬", color:"#008300", subs:["Kino / wydarzenia","Gry","Książki","Hobby","Inne"]},
+  "Subskrypcje":   {icon:"📱", color:"#9085e9", subs:["Streaming","Aplikacje","Telefon / internet","Inne"]},
+  "Zdrowie":       {icon:"💊", color:"#e66767", subs:["Apteka","Lekarz","Sport","Uroda","Inne"]},
+  "Ubrania":       {icon:"👕", color:"#d55181", subs:["Odzież","Buty","Dodatki","Inne"]},
+  "Praca / sprzęt":{icon:"🎥", color:"#d95926", subs:["Sprzęt filmowy","Oprogramowanie","Akcesoria","Inne"]},
+  "Inne":          {icon:"📦", color:"#898781", subs:["Prezenty","Inne"]}
+};
+const MONTHS = ["styczeń","luty","marzec","kwiecień","maj","czerwiec","lipiec","sierpień","wrzesień","październik","listopad","grudzień"];
+const MONTHS_GEN = ["stycznia","lutego","marca","kwietnia","maja","czerwca","lipca","sierpnia","września","października","listopada","grudnia"];
+const DAYS = ["niedziela","poniedziałek","wtorek","środa","czwartek","piątek","sobota"];
+
+/* wbudowany słownik: słowo (bez polskich znaków) -> [kategoria, podkategoria] */
+const BUILTIN = {};
+(function(){
+  const add=(cat,sub,words)=>words.forEach(w=>BUILTIN[w]=[cat,sub]);
+  add("Jedzenie","Zakupy spożywcze",["biedronka","lidl","zabka","aldi","kaufland","auchan","carrefour","dino","netto","stokrotka","zakupy","chleb","bulki","bulka","maslo","mleko","ser","jajka","jogurt","szynka","kielbasa","parowki","warzywa","owoce","jablka","banany","pomidory","ziemniaki","ogorki","ryz","makaron","platki","kasza","maka","cukier","woda","sok","spozywcze","wedlina","twarog","smietana","kefir","pieczywo"]);
+  add("Jedzenie","Niezdrowe jedzenie",["zelki","chipsy","czekolada","baton","batony","batonik","cukierki","slodycze","lody","ciastka","ciasto","paczek","paczki","drozdzowka","cola","pepsi","sprite","fanta","energetyk","monster","redbull","guma","zabka slodycze","napoj","oreo","nutella","krowki","praliny","wafelek","wafelki"]);
+  add("Jedzenie","Na mieście",["restauracja","obiad","kolacja","sniadanie","lunch","sushi","kebab","pizza","burger","mcdonald","mcdonalds","mcdonalda","kfc","zapiekanka","bar mleczny","stolowka","pyszne","glovo","wolt","uber eats","bar","knajpa","bistro","food truck","frytki","hot dog","hotdog"]);
+  add("Jedzenie","Kawa",["kawa","kawy","latte","cappuccino","espresso","starbucks","costa","kawiarnia","herbata","matcha"]);
+  add("Jedzenie","Alkohol",["piwo","piwa","wino","wodka","whisky","drink","drinki","alkohol","szoty","prosecco"]);
+  add("Transport","Paliwo",["paliwo","benzyna","diesel","orlen","tankowanie","lpg","stacja paliw","shell","bp","circle"]);
+  add("Transport","Bilety",["bilet","bilety","pkp","intercity","pociag","autobus","tramwaj","metro","komunikacja","mpk","ztm","skm","flixbus"]);
+  add("Transport","Taxi / przejazdy",["uber","bolt","taxi","taksowka","freenow","hulajnoga","rower miejski","przejazd"]);
+  add("Transport","Auto",["myjnia","parking","przeglad","mechanik","opony","autostrada","winieta","olej silnikowy","warsztat","oc","ubezpieczenie auta"]);
+  add("Dom","Rachunki",["prad","gaz","rachunek","rachunki","oplata","oplaty","smieci","ogrzewanie","administracja"]);
+  add("Dom","Czynsz",["czynsz","wynajem","najem"]);
+  add("Dom","Wyposażenie",["ikea","castorama","obi","leroy","meble","lampa","garnek","patelnia","posciel","recznik","krzeslo","biurko","polka","dywan","zaslony"]);
+  add("Dom","Chemia i środki",["proszek","plyn do naczyn","papier toaletowy","chemia","rossmann","gabka","worki na smieci","plyn do prania","zmywak","mydlo"]);
+  add("Rozrywka","Kino / wydarzenia",["kino","koncert","teatr","muzeum","wystawa","stand up","standup","festiwal","escape room","kregle","bilard","bilet do kina","bilety do kina","bilet na koncert","bilety na koncert"]);
+  add("Rozrywka","Gry",["gra","gry","steam","playstation","xbox","nintendo","psn","planszowka","planszowki"]);
+  add("Rozrywka","Książki",["ksiazka","ksiazki","empik","audiobook","ebook","komiks"]);
+  add("Rozrywka","Hobby",["lego","puzzle","farby","modelarstwo","wedkarstwo"]);
+  add("Subskrypcje","Streaming",["netflix","spotify","hbo","max","disney","youtube premium","amazon prime","player","canal","tidal","apple music"]);
+  add("Subskrypcje","Aplikacje",["subskrypcja","abonament","icloud","chatgpt","claude","dropbox","canva","aplikacja","google one"]);
+  add("Subskrypcje","Telefon / internet",["telefon","internet","play","orange","t mobile","tmobile","plus gsm","doladowanie","router"]);
+  add("Zdrowie","Apteka",["apteka","leki","lek","witaminy","tabletki","syrop","plastry","maska","suplementy","ibuprom","apap"]);
+  add("Zdrowie","Lekarz",["lekarz","dentysta","stomatolog","badania","wizyta","przychodnia","okulista","fizjoterapeuta","recepta"]);
+  add("Zdrowie","Sport",["silownia","basen","karnet","trening","joga","squash","multisport","bieganie","rolki"]);
+  add("Zdrowie","Uroda",["fryzjer","kosmetyki","krem","perfumy","barber","manicure","golenie","szampon"]);
+  add("Ubrania","Odzież",["kurtka","spodnie","koszulka","koszula","sukienka","bluza","sweter","skarpetki","bielizna","tshirt","jeansy","ubrania","hm","zara","reserved","sinsay","cropp","house","vinted"]);
+  add("Ubrania","Buty",["buty","trampki","sneakersy","adidasy","ccc","deichmann","sandaly","kozaki"]);
+  add("Ubrania","Dodatki",["pasek","czapka","szalik","rekawiczki","okulary","plecak","torba","portfel","zegarek"]);
+  add("Praca / sprzęt","Sprzęt filmowy",["statyw","obiektyw","kamera","aparat","mikrofon","gimbal","dron","lampa led","softbox","rig","matte box","monitor podgladowy","slider"]);
+  add("Praca / sprzęt","Oprogramowanie",["adobe","davinci","resolve","premiere","wtyczka","plugin","licencja","final cut","after effects"]);
+  add("Praca / sprzęt","Akcesoria",["dysk","ssd","karta sd","karta pamieci","bateria","akumulator","kabel","adapter","przejsciowka","filtr nd","hub","czytnik kart","pendrive","statyw mikrofonowy"]);
+  add("Inne","Prezenty",["prezent","prezenty","kwiaty","kwiatek","upominek","kartka urodzinowa"]);
+})();
+
+/* liczby słownie */
+const NUMWORDS = {"zero":0,"jeden":1,"jedna":1,"jednego":1,"dwa":2,"dwie":2,"trzy":3,"cztery":4,"piec":5,"szesc":6,"siedem":7,"osiem":8,"dziewiec":9,
+"dziesiec":10,"jedenascie":11,"dwanascie":12,"trzynascie":13,"czternascie":14,"pietnascie":15,"szesnascie":16,"siedemnascie":17,"osiemnascie":18,"dziewietnascie":19,
+"dwadziescia":20,"trzydziesci":30,"czterdziesci":40,"piecdziesiat":50,"szescdziesiat":60,"siedemdziesiat":70,"osiemdziesiat":80,"dziewiecdziesiat":90,
+"sto":100,"dwiescie":200,"trzysta":300,"czterysta":400,"piecset":500,"szescset":600,"siedemset":700,"osiemset":800,"dziewiecset":900,"tysiac":1000};
+
+/* ================= STORAGE ================= */
+const load = (k,d)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } };
+const save = (k,v)=>localStorage.setItem(k,JSON.stringify(v));
+let EXP = load("bw_expenses",[]);
+let SET = load("bw_settings",{apiKey:"",budgetTotal:0,budgetCats:{}});
+let LEARNED = load("bw_dict",{});
+const saveAll = ()=>{ save("bw_expenses",EXP); save("bw_settings",SET); save("bw_dict",LEARNED); };
+if(navigator.storage && navigator.storage.persist) navigator.storage.persist();
+
+/* ================= POMOCNICZE ================= */
+const $ = id=>document.getElementById(id);
+const PLMAP = {"ą":"a","ć":"c","ę":"e","ł":"l","ń":"n","ó":"o","ś":"s","ź":"z","ż":"z"};
+const norm = s=>s.toLowerCase().replace(/[ąćęłńóśźż]/g,c=>PLMAP[c]||c).replace(/[^a-z0-9\s.,]/g," ").replace(/\s+/g," ").trim();
+const zl = n=>{
+  const s = n.toFixed(2).replace(".",",");
+  const [i,d] = s.split(",");
+  return i.replace(/\B(?=(\d{3})+(?!\d))/g," ")+","+d+" zł";
+};
+const zl0 = n=> n % 1 === 0 ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g," ")+" zł" : zl(n);
+const todayStr = (off=0)=>{ const d=new Date(); d.setDate(d.getDate()+off); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+const uid = ()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc = s=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.style.display="block"; clearTimeout(toast._t); toast._t=setTimeout(()=>t.style.display="none",2600); }
+
+/* ================= PARSOWANIE ================= */
+function wordsToNumber(tokens){
+  let total=0, found=false, used=[];
+  for(const tk of tokens){
+    if(NUMWORDS[tk]!==undefined){ total+=NUMWORDS[tk]; found=true; used.push(tk); }
+    else if(found) break;
+    else used=[];
+  }
+  return found? {value:total, used} : null;
+}
+function parseText(raw){
+  let text = raw.trim();
+  let low = " "+text.toLowerCase()+" ";
+  let amount = null, m;
+  const cut = s=>{ low = low.replace(s," "); };
+  // 12,50 / 12.50
+  if(m = low.match(/(\d+)[.,](\d{1,2})(?!\d)/)){ amount = parseFloat(m[1]+"."+m[2]); cut(m[0]); }
+  // 5 zł 50 gr
+  else if(m = low.match(/(\d+)\s*(?:złotych|zlotych|złote|zlote|złoty|zloty|zł|zl|pln)\s*(?:i\s*)?(\d{1,2})\s*(?:groszy|grosze|grosz|gr)/)){ amount = +m[1] + (+m[2])/100; cut(m[0]); }
+  // 50 groszy
+  else if(m = low.match(/(\d+)\s*(?:gr|grosz\w*)(?![a-ząęó])/)){ amount = (+m[1])/100; cut(m[0]); }
+  // gołe 5
+  else if(m = low.match(/(\d+)/)){ amount = +m[1]; cut(m[0]); }
+  // liczby słownie
+  if(amount===null){
+    const w = wordsToNumber(norm(low).split(/\s+/));
+    if(w){
+      amount = w.value;
+      const usedSet = [...w.used];
+      low = " "+low.trim().split(/\s+/).filter(tk=>{
+        const i = usedSet.indexOf(norm(tk));
+        if(i>=0){ usedSet.splice(i,1); return false; }
+        return true;
+      }).join(" ")+" ";
+    }
+  }
+  // data
+  let dayOffset = 0;
+  if(/przedwczoraj/.test(low)){ dayOffset=-2; low=low.replace(/przedwczoraj/g," "); }
+  else if(/wczoraj/.test(low)){ dayOffset=-1; low=low.replace(/wczoraj/g," "); }
+  // sprzątanie opisu (uwaga: \b nie działa z polskimi znakami, więc granice słów robimy spacjami)
+  low = low.replace(/(^|\s)(złotych|zlotych|złote|zlote|złoty|zloty|zł|zl|pln|groszy|grosze|grosza|grosz|gr|za|wydałem|wydalam|wydałam|wydalem|kupiłem|kupilam|kupiłam|kupilem|zapłaciłem|zaplacilem|zapłaciłam|zaplacilam|dzisiaj|dzis|dziś)(?=\s|$)/gi," ");
+  const desc = low.replace(/\s+/g," ").trim();
+  return { amount, desc, dayOffset };
+}
+
+/* ================= KATEGORYZACJA ================= */
+function dictLookup(desc){
+  const d = norm(desc);
+  if(!d) return null;
+  if(LEARNED[d]) return {cat:LEARNED[d][0], sub:LEARNED[d][1], source:"dict"};
+  const words = d.split(" ").filter(w=>w.length>=3);
+  for(const dict of [LEARNED, BUILTIN]){
+    // frazy wielowyrazowe
+    for(const key in dict){ if(key.includes(" ") && d.includes(key)) return {cat:dict[key][0], sub:dict[key][1], source:"dict"}; }
+    // dokładne słowo
+    for(const w of words){ if(dict[w]) return {cat:dict[w][0], sub:dict[w][1], source:"dict"}; }
+    // odmiana: prefiksy (żelki/żelków)
+    for(const w of words){
+      for(const key in dict){
+        if(key.includes(" ")) continue;
+        if(key.length>=4 && w.length>=4 && (w.startsWith(key.slice(0,Math.min(key.length,5))) && Math.abs(w.length-key.length)<=3) && (w.startsWith(key)||key.startsWith(w)))
+          return {cat:dict[key][0], sub:dict[key][1], source:"dict"};
+      }
+    }
+  }
+  return null;
+}
+function learn(desc, cat, sub){
+  const d = norm(desc);
+  if(!d || d.length<2) return;
+  LEARNED[d] = [cat, sub];
+  save("bw_dict",LEARNED);
+}
+async function aiClassify(desc){
+  if(!SET.apiKey) return null;
+  const catList = Object.entries(CATS).map(([c,v])=>`- ${c} (podkategorie: ${v.subs.join(", ")})`).join("\n");
+  const body = {
+    model:"claude-haiku-4-5-20251001", max_tokens:200,
+    messages:[{role:"user",content:
+`Przypisz polski wydatek do kategorii i podkategorii z listy.
+${catList}
+
+Wydatek: "${desc}"
+
+Odpowiedz WYŁĄCZNIE poprawnym JSON, bez komentarza: {"kategoria":"...","podkategoria":"..."}`}]
+  };
+  const res = await fetch("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{"content-type":"application/json","x-api-key":SET.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify(body)
+  });
+  if(!res.ok) throw new Error("API "+res.status);
+  const data = await res.json();
+  const txt = (data.content&&data.content[0]&&data.content[0].text)||"";
+  const jm = txt.match(/\{[\s\S]*\}/);
+  if(!jm) throw new Error("brak JSON");
+  const j = JSON.parse(jm[0]);
+  let cat = j.kategoria, sub = j.podkategoria;
+  if(!CATS[cat]){ cat = Object.keys(CATS).find(c=>norm(c)===norm(cat||""))||"Inne"; }
+  if(!CATS[cat].subs.includes(sub)){ sub = CATS[cat].subs.find(s=>norm(s)===norm(sub||""))||CATS[cat].subs[CATS[cat].subs.length-1]; }
+  return {cat, sub, source:"ai"};
+}
+
+/* ================= DODAWANIE ================= */
+let lastAdded = null;
+async function addEntry(){
+  const raw = $("entryInput").value.trim();
+  const err = $("addErr");
+  err.style.display="none";
+  if(!raw) return;
+  const p = parseText(raw);
+  if(p.amount===null || p.amount<=0){
+    err.textContent = "Nie widzę kwoty — powiedz np. „5 złotych żelki”."; err.style.display="block"; return;
+  }
+  if(!p.desc){
+    err.textContent = "Nie widzę, co kupiłeś — powiedz np. „5 złotych żelki”."; err.style.display="block"; return;
+  }
+  const e = { id:uid(), date:todayStr(p.dayOffset), ts:Date.now(), amount:Math.round(p.amount*100)/100, desc:p.desc, cat:"Inne", sub:"Inne", src:"none" };
+  const hit = dictLookup(p.desc);
+  $("entryInput").value = "";
+  if(hit){ e.cat=hit.cat; e.sub=hit.sub; e.src="dict"; finishAdd(e); }
+  else {
+    if(SET.apiKey && navigator.onLine){
+      $("addBtn").disabled = true; $("addBtn").textContent = "🤖 Rozpoznaję…";
+      try{
+        const ai = await aiClassify(p.desc);
+        if(ai){ e.cat=ai.cat; e.sub=ai.sub; e.src="ai"; learn(p.desc, ai.cat, ai.sub); }
+      }catch(ex){ e.src="fail"; }
+      $("addBtn").disabled = false; $("addBtn").textContent = "Dodaj wydatek";
+    }
+    finishAdd(e);
+  }
+}
+function finishAdd(e){
+  EXP.push(e); save("bw_expenses",EXP);
+  lastAdded = e;
+  showConfirm(e);
+  renderAll();
+}
+function showConfirm(e){
+  const c = $("confirmCard");
+  c.style.display = "block";
+  $("ccAmount").textContent = zl(e.amount);
+  $("ccDesc").textContent = e.desc + (e.date!==todayStr() ? " · "+fmtDate(e.date) : "");
+  $("ccIcon").textContent = CATS[e.cat].icon;
+  fillCatSelect($("ccCat"), e.cat);
+  fillSubSelect($("ccSub"), e.cat, e.sub);
+  const srcTxt = {dict:"✅ Rozpoznano ze słownika — popraw, jeśli się mylę.", ai:"🤖 Rozpoznane przez AI i zapamiętane na przyszłość.", none:"❓ Nie rozpoznałem — wybierz kategorię, a zapamiętam.", fail:"⚠️ AI niedostępne — wybierz kategorię, a zapamiętam."}[e.src];
+  $("ccSrc").textContent = srcTxt;
+}
+function fillCatSelect(sel, val){
+  sel.innerHTML = Object.keys(CATS).map(c=>`<option ${c===val?"selected":""}>${CATS[c].icon} ${c}</option>`).join("");
+  sel.dataset.val = val;
+}
+function fillSubSelect(sel, cat, val){
+  sel.innerHTML = CATS[cat].subs.map(s=>`<option ${s===val?"selected":""}>${s}</option>`).join("");
+}
+const catFromOption = t=>t.replace(/^\S+\s/,"");
+$("ccCat").addEventListener("change",()=>{
+  if(!lastAdded) return;
+  const cat = catFromOption($("ccCat").value);
+  lastAdded.cat = cat; lastAdded.sub = CATS[cat].subs[0];
+  fillSubSelect($("ccSub"), cat, lastAdded.sub);
+  $("ccIcon").textContent = CATS[cat].icon;
+  learn(lastAdded.desc, lastAdded.cat, lastAdded.sub);
+  save("bw_expenses",EXP); renderAll();
+});
+$("ccSub").addEventListener("change",()=>{
+  if(!lastAdded) return;
+  lastAdded.sub = $("ccSub").value;
+  learn(lastAdded.desc, lastAdded.cat, lastAdded.sub);
+  save("bw_expenses",EXP); renderAll();
+});
+$("ccOk").addEventListener("click",()=>{ $("confirmCard").style.display="none"; lastAdded=null; });
+$("addBtn").addEventListener("click", addEntry);
+$("entryInput").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); addEntry(); } });
+
+/* ================= WIDOKI ================= */
+let viewMonth = (()=>{ const d=new Date(); return {y:d.getFullYear(), m:d.getMonth()}; })();
+function monthKey(y,m){ return y+"-"+String(m+1).padStart(2,"0"); }
+function expInMonth(y,m){ const k=monthKey(y,m); return EXP.filter(e=>e.date.startsWith(k)); }
+function fmtDate(ds){ const [y,m,d]=ds.split("-").map(Number); return d+" "+MONTHS_GEN[m-1]; }
+function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
+const sum = arr=>arr.reduce((a,e)=>a+e.amount,0);
+
+function renderHead(){
+  const now = new Date();
+  const cur = expInMonth(now.getFullYear(), now.getMonth());
+  $("headTotal").innerHTML = "ten miesiąc: <b>"+zl(sum(cur))+"</b>";
+}
+function expRow(e){
+  return `<div class="exp-row" data-id="${e.id}">
+    <div class="exp-dot" style="background:${CATS[e.cat].color}22">${CATS[e.cat].icon}</div>
+    <div class="exp-main"><div class="exp-desc">${esc(e.desc)}</div><div class="exp-cat">${e.cat} · ${e.sub}</div></div>
+    <div class="exp-amt">${zl(e.amount)}</div>
+  </div>`;
+}
+function renderToday(){
+  const t = todayStr();
+  const list = EXP.filter(e=>e.date===t).sort((a,b)=>b.ts-a.ts);
+  $("todaySum").textContent = list.length? zl(sum(list)) : "";
+  $("todayList").innerHTML = list.length? list.map(expRow).join("") : `<div class="empty">Nic jeszcze nie dodałeś dzisiaj.</div>`;
+}
+function renderHistory(){
+  $("hLabel").textContent = MONTHS[viewMonth.m]+" "+viewMonth.y;
+  const list = expInMonth(viewMonth.y, viewMonth.m).sort((a,b)=> b.date.localeCompare(a.date) || b.ts-a.ts);
+  if(!list.length){ $("historyList").innerHTML = `<div class="empty">Brak wydatków w tym miesiącu.</div>`; return; }
+  let html="", curDay="";
+  for(const e of list){
+    if(e.date!==curDay){
+      curDay=e.date;
+      const dayList = list.filter(x=>x.date===e.date);
+      const d = new Date(e.date+"T12:00");
+      html += `<div class="day-head"><span>${fmtDate(e.date)}, ${DAYS[d.getDay()]}</span><b>${zl(sum(dayList))}</b></div>`;
+    }
+    html += expRow(e);
+  }
+  $("historyList").innerHTML = html;
+}
+
+/* ---------- wykresy ---------- */
+function renderCharts(){
+  $("cLabel").textContent = MONTHS[viewMonth.m]+" "+viewMonth.y;
+  const list = expInMonth(viewMonth.y, viewMonth.m);
+  const nDays = daysInMonth(viewMonth.y, viewMonth.m);
+  const now = new Date();
+  const isCur = viewMonth.y===now.getFullYear() && viewMonth.m===now.getMonth();
+  const elapsed = isCur ? now.getDate() : nDays;
+  const total = sum(list);
+  const perDay = Array.from({length:nDays},()=>0);
+  for(const e of list){ perDay[+e.date.slice(8)-1] += e.amount; }
+  const maxV = Math.max(...perDay, 1);
+  const maxIdx = perDay.indexOf(Math.max(...perDay));
+  $("tSum").textContent = total? zl0(total): "0 zł";
+  $("tAvg").textContent = total? zl0(total/Math.max(elapsed,1)) : "—";
+  $("tMax").textContent = total? zl0(perDay[maxIdx]) : "—";
+  $("tMaxDay").textContent = total? fmtDate(monthKey(viewMonth.y,viewMonth.m)+"-"+String(maxIdx+1).padStart(2,"0")) : "";
+
+  /* --- słupki --- */
+  const W=360,H=180,padL=42,padB=20,padT=12;
+  const plotW=W-padL-8, plotH=H-padT-padB;
+  const dailyLimit = SET.budgetTotal>0 ? SET.budgetTotal/nDays : null;
+  const yMax = Math.max(maxV, dailyLimit||0)*1.12;
+  const bw = Math.max(2, plotW/nDays - 2.2);
+  let bars="", grid="", hasOver=false;
+  for(let g=1;g<=3;g++){
+    const gy = padT + plotH - plotH*g/3;
+    grid += `<line x1="${padL}" y1="${gy}" x2="${W-8}" y2="${gy}" stroke="var(--grid)" stroke-width="1"/>
+    <text x="${padL-6}" y="${gy+4}" text-anchor="end" font-size="9" fill="var(--muted)">${Math.round(yMax*g/3)}</text>`;
+  }
+  for(let i=0;i<nDays;i++){
+    const x = padL + plotW*i/nDays + 1.1;
+    const h = perDay[i]/yMax*plotH;
+    const y = padT + plotH - h;
+    const over = dailyLimit!==null && perDay[i] > dailyLimit;
+    if(over) hasOver=true;
+    const col = over ? "var(--crit)" : "var(--accent)";
+    if(perDay[i]>0){
+      const r = Math.min(3, bw/2, h/2);
+      bars += `<path d="M${x},${(padT+plotH).toFixed(1)} L${x},${(y+r).toFixed(1)} Q${x},${y.toFixed(1)} ${(x+r).toFixed(1)},${y.toFixed(1)} L${(x+bw-r).toFixed(1)},${y.toFixed(1)} Q${(x+bw).toFixed(1)},${y.toFixed(1)} ${(x+bw).toFixed(1)},${(y+r).toFixed(1)} L${(x+bw).toFixed(1)},${(padT+plotH).toFixed(1)} Z" fill="${col}"/>`;
+    }
+    bars += `<rect class="barhit" data-day="${i+1}" x="${(padL+plotW*i/nDays).toFixed(1)}" y="0" width="${(plotW/nDays).toFixed(1)}" height="${H-padB}" fill="transparent"/>`;
+  }
+  let ticks="";
+  for(const d of [1,5,10,15,20,25,30]){
+    if(d>nDays) continue;
+    const x = padL + plotW*(d-1)/nDays + bw/2;
+    ticks += `<text x="${x.toFixed(1)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--muted)">${d}</text>`;
+  }
+  let limitLine="";
+  if(dailyLimit!==null){
+    const ly = padT + plotH - dailyLimit/yMax*plotH;
+    limitLine = `<line x1="${padL}" y1="${ly.toFixed(1)}" x2="${W-8}" y2="${ly.toFixed(1)}" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+  }
+  $("barChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Wydatki dzienne">
+    ${grid}<line x1="${padL}" y1="${padT+plotH}" x2="${W-8}" y2="${padT+plotH}" stroke="var(--baseline)" stroke-width="1"/>
+    ${bars}${limitLine}${ticks}</svg>`;
+  $("barNote").textContent = dailyLimit!==null
+    ? (hasOver ? "🔴 czerwony słupek = dzień powyżej dziennego limitu ("+zl0(dailyLimit)+") · żółta linia = limit" : "żółta przerywana linia = dzienny limit ("+zl0(dailyLimit)+")")
+    : "Ustaw budżet miesięczny, a pokażę, które dni przekraczają dzienny limit.";
+  $("barDetail").textContent = "Dotknij słupka, aby zobaczyć szczegóły";
+  document.querySelectorAll(".barhit").forEach(r=>{
+    r.addEventListener("click",()=>{
+      const d = +r.dataset.day;
+      const ds = monthKey(viewMonth.y,viewMonth.m)+"-"+String(d).padStart(2,"0");
+      const dayExp = list.filter(e=>e.date===ds);
+      $("barDetail").textContent = dayExp.length
+        ? fmtDate(ds)+": "+zl(sum(dayExp))+" — "+dayExp.slice(0,3).map(e=>e.desc).join(", ")+(dayExp.length>3?"…":"")
+        : fmtDate(ds)+": brak wydatków";
+    });
+  });
+
+  /* --- donut --- */
+  const byCat = {};
+  for(const e of list){ byCat[e.cat]=(byCat[e.cat]||0)+e.amount; }
+  const entries = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  if(!entries.length){
+    $("donutChart").innerHTML = `<div class="empty">Brak danych w tym miesiącu.</div>`;
+    $("donutLegend").innerHTML = "";
+  } else {
+    const R=54, CX=90, CY=90, SW=24, C=2*Math.PI*R;
+    let off=0, segs="";
+    for(const [cat,val] of entries){
+      const frac = val/total;
+      const len = Math.max(0, frac*C - 2.5);
+      segs += `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${CATS[cat].color}" stroke-width="${SW}"
+        stroke-dasharray="${len.toFixed(1)} ${(C-len).toFixed(1)}" stroke-dashoffset="${(-off*C+C/4).toFixed(1)}" />`;
+      off += frac;
+    }
+    $("donutChart").innerHTML = `<svg viewBox="0 0 180 180" style="max-width:210px;margin:0 auto" role="img" aria-label="Podział na kategorie">
+      ${segs}
+      <text x="${CX}" y="${CY-3}" text-anchor="middle" font-size="17" font-weight="700" fill="var(--ink)">${zl0(total)}</text>
+      <text x="${CX}" y="${CY+15}" text-anchor="middle" font-size="9.5" fill="var(--muted)">razem</text></svg>`;
+    $("donutLegend").innerHTML = entries.map(([cat,val])=>`<div class="leg-row">
+      <span class="leg-swatch" style="background:${CATS[cat].color}"></span>
+      <span class="leg-name">${CATS[cat].icon} ${cat}</span>
+      <span class="leg-val">${zl(val)}</span>
+      <span class="leg-pct">${Math.round(val/total*100)}%</span></div>`).join("");
+  }
+
+  /* --- top --- */
+  const top = [...list].sort((a,b)=>b.amount-a.amount).slice(0,5);
+  $("topList").innerHTML = top.length? top.map(expRow).join("") : `<div class="empty">Brak danych.</div>`;
+}
+
+/* ---------- budżet ---------- */
+function statusFor(pct){
+  if(pct>=1) return {col:"var(--crit)", icon:"🔴", txt:"limit przekroczony"};
+  if(pct>=0.75) return {col:"var(--warn)", icon:"🟡", txt:"zbliżasz się do limitu"};
+  return {col:"var(--good)", icon:"🟢", txt:"w normie"};
+}
+function renderBudget(){
+  const now = new Date();
+  const list = expInMonth(now.getFullYear(), now.getMonth());
+  const total = sum(list);
+  const B = SET.budgetTotal||0;
+  if(B>0){
+    const pct = total/B;
+    const st = statusFor(pct);
+    $("budHero").textContent = zl(total);
+    $("budHeroSub").textContent = "z "+zl0(B)+" na "+MONTHS[now.getMonth()]+" · zostało "+zl0(Math.max(0,B-total));
+    $("budTotalFill").style.width = Math.min(100,pct*100)+"%";
+    $("budTotalFill").style.background = st.col;
+    $("budTotalStatus").innerHTML = st.icon+" "+st.txt+" — wykorzystane <b style='margin-left:4px'>"+Math.round(pct*100)+"%</b>";
+    const nD = daysInMonth(now.getFullYear(), now.getMonth());
+    const expected = B*now.getDate()/nD;
+    const diff = total-expected;
+    $("budPace").textContent = diff<=0
+      ? "📉 Tempo dobre: jesteś "+zl0(-diff)+" poniżej planu na dziś."
+      : "📈 Tempo za szybkie: jesteś "+zl0(diff)+" powyżej planu na dziś.";
+  } else {
+    $("budHero").textContent = zl(total);
+    $("budHeroSub").textContent = "wydane w tym miesiącu — ustaw limit przyciskiem „zmień”";
+    $("budTotalFill").style.width="0%";
+    $("budTotalStatus").textContent=""; $("budPace").textContent="";
+  }
+  const byCat={};
+  for(const e of list){ byCat[e.cat]=(byCat[e.cat]||0)+e.amount; }
+  $("budCatList").innerHTML = Object.keys(CATS).map(cat=>{
+    const spent = byCat[cat]||0;
+    const lim = SET.budgetCats[cat]||0;
+    let bar="", statline="";
+    if(lim>0){
+      const st = statusFor(spent/lim);
+      bar = `<div class="bar-track"><div class="bar-fill" style="width:${Math.min(100,spent/lim*100)}%;background:${st.col}"></div></div>`;
+      statline = `<div class="bud-status">${st.icon} ${Math.round(spent/lim*100)}% z ${zl0(lim)}</div>`;
+    } else if(spent>0){
+      bar = `<div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>`;
+      statline = `<div class="bud-status" style="color:var(--muted)">bez limitu — dotknij, aby ustawić</div>`;
+    } else return "";
+    return `<div class="bud-row" data-cat="${cat}" style="cursor:pointer">
+      <div class="bud-top"><span class="bud-name">${CATS[cat].icon} ${cat}</span><span class="bud-nums"><b>${zl(spent)}</b></span></div>
+      ${bar}${statline}</div>`;
+  }).join("") || `<div class="empty">Dodaj pierwsze wydatki, a pojawią się tu kategorie.</div>`;
+  document.querySelectorAll("#budCatList .bud-row").forEach(r=>{
+    r.addEventListener("click",()=>openLimitModal(r.dataset.cat));
+  });
+}
+function openLimitModal(cat){
+  const cur = cat? (SET.budgetCats[cat]||"") : (SET.budgetTotal||"");
+  openModal(`<h3>${cat? CATS[cat].icon+" Limit: "+cat : "🎯 Budżet miesięczny (całość)"}</h3>
+    <div class="m-row"><input type="number" id="limInput" inputmode="decimal" placeholder="np. 500" value="${cur}"> </div>
+    <div class="set-note">Kwota w złotych na miesiąc. Wpisz 0 albo zostaw puste, żeby usunąć limit.</div>
+    <div class="m-actions"><button class="btn" id="mCancel">Anuluj</button><button class="btn primary" id="mSave">Zapisz</button></div>`);
+  $("mSave").addEventListener("click",()=>{
+    const v = parseFloat($("limInput").value.replace(",","."))||0;
+    if(cat){ if(v>0) SET.budgetCats[cat]=v; else delete SET.budgetCats[cat]; }
+    else SET.budgetTotal = v;
+    save("bw_settings",SET); closeModal(); renderAll(); toast("Zapisano limit");
+  });
+  $("mCancel").addEventListener("click",closeModal);
+  $("limInput").focus();
+}
+$("editTotalBtn").addEventListener("click",()=>openLimitModal(null));
+
+/* ---------- edycja wpisu ---------- */
+function openEditModal(id){
+  const e = EXP.find(x=>x.id===id);
+  if(!e) return;
+  openModal(`<h3>Edytuj wydatek</h3>
+    <div class="m-row"><input type="number" id="eAmt" inputmode="decimal" step="0.01" value="${e.amount}"><input type="date" id="eDate" value="${e.date}"></div>
+    <div class="m-row"><input type="text" id="eDesc" value="${esc(e.desc)}"></div>
+    <div class="m-row"><select id="eCat"></select><select id="eSub"></select></div>
+    <div class="m-actions"><button class="btn danger" id="eDel">Usuń</button><button class="btn" id="eCancel">Anuluj</button><button class="btn primary" id="eSave">Zapisz</button></div>`);
+  fillCatSelect($("eCat"), e.cat);
+  fillSubSelect($("eSub"), e.cat, e.sub);
+  $("eCat").addEventListener("change",()=>{
+    const c = catFromOption($("eCat").value);
+    fillSubSelect($("eSub"), c, CATS[c].subs[0]);
+  });
+  $("eSave").addEventListener("click",()=>{
+    const oldCat=e.cat, oldSub=e.sub;
+    e.amount = Math.round((parseFloat($("eAmt").value.replace(",","."))||e.amount)*100)/100;
+    e.date = $("eDate").value||e.date;
+    e.desc = $("eDesc").value.trim()||e.desc;
+    e.cat = catFromOption($("eCat").value);
+    e.sub = $("eSub").value;
+    if(e.cat!==oldCat || e.sub!==oldSub) learn(e.desc, e.cat, e.sub);
+    save("bw_expenses",EXP); closeModal(); renderAll(); toast("Zapisano");
+  });
+  $("eDel").addEventListener("click",()=>{
+    if(!confirm("Usunąć ten wydatek?")) return;
+    EXP = EXP.filter(x=>x.id!==id);
+    save("bw_expenses",EXP); closeModal(); renderAll(); toast("Usunięto");
+  });
+  $("eCancel").addEventListener("click",closeModal);
+}
+document.addEventListener("click",ev=>{
+  const row = ev.target.closest(".exp-row");
+  if(row && row.dataset.id) openEditModal(row.dataset.id);
+});
+
+/* ---------- modal ---------- */
+function openModal(html){ $("modal").innerHTML=html; $("modalBg").classList.add("open"); }
+function closeModal(){ $("modalBg").classList.remove("open"); }
+$("modalBg").addEventListener("click",ev=>{ if(ev.target.id==="modalBg") closeModal(); });
+
+/* ---------- ustawienia ---------- */
+$("apiKeyInput").value = SET.apiKey||"";
+$("saveKeyBtn").addEventListener("click",()=>{
+  SET.apiKey = $("apiKeyInput").value.trim();
+  save("bw_settings",SET);
+  $("apiStatus").textContent = SET.apiKey? "Zapisano klucz." : "Usunięto klucz.";
+  $("apiStatus").style.color = "var(--good)";
+});
+$("testKeyBtn").addEventListener("click",async ()=>{
+  SET.apiKey = $("apiKeyInput").value.trim(); save("bw_settings",SET);
+  if(!SET.apiKey){ $("apiStatus").textContent="Najpierw wklej klucz."; $("apiStatus").style.color="var(--serious)"; return; }
+  $("apiStatus").textContent="Testuję…"; $("apiStatus").style.color="var(--muted)";
+  try{
+    const r = await aiClassify("żelki");
+    $("apiStatus").textContent = "✅ Działa! Testowe „żelki” → "+r.cat+" / "+r.sub;
+    $("apiStatus").style.color = "var(--good)";
+  }catch(ex){
+    $("apiStatus").textContent = "❌ Błąd: "+ex.message+" — sprawdź klucz i internet.";
+    $("apiStatus").style.color = "var(--crit)";
+  }
+});
+$("exportBtn").addEventListener("click",()=>{
+  const data = {app:"budzet",version:1,exported:new Date().toISOString(),expenses:EXP,settings:{budgetTotal:SET.budgetTotal,budgetCats:SET.budgetCats},learned:LEARNED};
+  downloadFile("budzet-kopia-"+todayStr()+".json", JSON.stringify(data,null,1), "application/json");
+  toast("Zapisano kopię danych");
+});
+$("csvBtn").addEventListener("click",()=>{
+  let csv = "﻿data;kwota;kategoria;podkategoria;opis\n";
+  for(const e of [...EXP].sort((a,b)=>a.date.localeCompare(b.date))){
+    csv += `${e.date};${String(e.amount).replace(".",",")};${e.cat};${e.sub};"${e.desc.replace(/"/g,'""')}"\n`;
+  }
+  downloadFile("budzet-"+todayStr()+".csv", csv, "text/csv");
+});
+function downloadFile(name, content, type){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([content],{type}));
+  a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+$("importBtn").addEventListener("click",()=>$("importFile").click());
+$("importFile").addEventListener("change",ev=>{
+  const f = ev.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    try{
+      const d = JSON.parse(rd.result);
+      if(!d.expenses || d.app!=="budzet") throw new Error("to nie jest plik kopii");
+      if(!confirm("Wczytać "+d.expenses.length+" wydatków z kopii? Obecne dane zostaną zastąpione.")) return;
+      EXP = d.expenses;
+      if(d.settings){ SET.budgetTotal=d.settings.budgetTotal||0; SET.budgetCats=d.settings.budgetCats||{}; }
+      if(d.learned) LEARNED = d.learned;
+      saveAll(); renderAll(); toast("Wczytano kopię ✅");
+    }catch(ex){ alert("Nie udało się wczytać pliku: "+ex.message); }
+  };
+  rd.readAsText(f); ev.target.value="";
+});
+$("wipeBtn").addEventListener("click",()=>{
+  if(!confirm("Na pewno usunąć WSZYSTKIE dane? Tego nie da się cofnąć.")) return;
+  if(!confirm("Ostatnie ostrzeżenie — usunąć wszystko?")) return;
+  EXP=[]; LEARNED={}; SET={apiKey:"",budgetTotal:0,budgetCats:{}};
+  saveAll(); renderAll(); toast("Dane usunięte");
+});
+function renderLearned(){
+  const keys = Object.keys(LEARNED);
+  $("learnedList").innerHTML = keys.length? keys.slice(-40).reverse().map(k=>
+    `<div class="learned-row"><span class="lw">${esc(k)}</span><span class="lc">${LEARNED[k][0]} · ${LEARNED[k][1]}</span><button data-k="${esc(k)}" title="zapomnij">✕</button></div>`).join("")
+    : `<div class="empty">Jeszcze nic — pojawią się tu słowa nauczone z Twoich poprawek.</div>`;
+  document.querySelectorAll("#learnedList button").forEach(b=>b.addEventListener("click",ev=>{
+    ev.stopPropagation(); delete LEARNED[b.dataset.k]; save("bw_dict",LEARNED); renderLearned();
+  }));
+}
+
+/* ---------- nawigacja ---------- */
+document.querySelectorAll("nav button").forEach(b=>{
+  b.addEventListener("click",()=>{
+    document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+    $("scr-"+b.dataset.scr).classList.add("active");
+    window.scrollTo(0,0);
+    renderAll();
+  });
+});
+function shiftMonth(d){
+  viewMonth.m += d;
+  if(viewMonth.m<0){ viewMonth.m=11; viewMonth.y--; }
+  if(viewMonth.m>11){ viewMonth.m=0; viewMonth.y++; }
+  renderAll();
+}
+$("hPrev").addEventListener("click",()=>shiftMonth(-1));
+$("hNext").addEventListener("click",()=>shiftMonth(1));
+$("cPrev").addEventListener("click",()=>shiftMonth(-1));
+$("cNext").addEventListener("click",()=>shiftMonth(1));
+
+function renderAll(){
+  renderHead(); renderToday(); renderHistory(); renderCharts(); renderBudget(); renderLearned();
+}
+renderAll();
+
+/* ---------- PWA ---------- */
+let deferredPrompt=null;
+window.addEventListener("beforeinstallprompt",e=>{
+  e.preventDefault(); deferredPrompt=e;
+  $("installBtn").style.display="inline-block";
+  $("installNote").textContent="Kliknij przycisk powyżej, żeby dodać aplikację do ekranu głównego.";
+});
+$("installBtn").addEventListener("click",async ()=>{
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt=null; $("installBtn").style.display="none";
+});
+if("serviceWorker" in navigator && (location.protocol==="https:" || location.hostname==="localhost")) navigator.serviceWorker.register("sw.js");
+</script>
+</body>
+</html>
