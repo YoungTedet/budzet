@@ -194,7 +194,12 @@ nav button.active{color:var(--accent)}
     <div class="mn-label" id="cLabel"></div>
     <button id="cNext">›</button>
   </div>
-  <select id="chartCat" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:15px;margin-bottom:14px"></select>
+  <select id="chartCat" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:15px;margin-bottom:10px"></select>
+  <div class="typerow" id="bizRow" style="margin-bottom:14px">
+    <button class="typ active" data-bizf="">Wszystko</button>
+    <button class="typ" data-bizf="priv">👤 Prywatne</button>
+    <button class="typ" data-bizf="biz">🏢 Firmowe</button>
+  </div>
   <div class="tiles">
     <div class="tile"><div class="t-label">Suma</div><div class="t-val" id="tSum">—</div></div>
     <div class="tile"><div class="t-label">Śr. / dzień</div><div class="t-val" id="tAvg">—</div></div>
@@ -217,6 +222,10 @@ nav button.active{color:var(--accent)}
     <h3>Ocena zakupów</h3>
     <div id="ocList"></div>
     <div class="chart-note">AI ocenia przy dodawaniu — możesz to zmienić w każdym wpisie.</div>
+  </div>
+  <div class="card">
+    <h3>Prywatne vs firmowe</h3>
+    <div id="bizList"></div>
   </div>
   <div class="card">
     <h3>Największe wydatki</h3>
@@ -600,6 +609,11 @@ function splitEntries(raw){
   let dayOffset = 0;
   if(/przedwczoraj/i.test(t)){ dayOffset=-2; t=t.replace(/przedwczoraj/gi," "); }
   else if(/wczoraj/i.test(t)){ dayOffset=-1; t=t.replace(/wczoraj/gi," "); }
+  let biz = false;
+  if(/(^|\s)(firmow\w*|na firmę|na firme|służbow\w*|sluzbow\w*)(\s|$)/i.test(t)){
+    biz = true;
+    t = t.replace(/(^|\s)(firmow\w*|na firmę|na firme|służbow\w*|sluzbow\w*)(?=\s|$)/gi," ");
+  }
   // nie rozdzielaj „5 zł i 50 groszy” na dwa wydatki
   t = t.replace(/((?:złotych|zlotych|złote|zlote|złoty|zloty|zł|zl)\s*)i\s+(?=\d{1,2}\s*(?:groszy|grosze|grosz|gr))/gi,"$1");
   const rawParts = t.split(/\s*,\s*(?=\D)|\s+i\s+|\s+oraz\s+|\s+plus\s+|\s*;\s*|\n+/i);
@@ -612,7 +626,7 @@ function splitEntries(raw){
     else buf = buf ? buf+" "+p : p;
   }
   if(buf){ if(out.length) out[out.length-1] += " "+buf; else out.push(buf); }
-  return {segments:out, dayOffset};
+  return {segments:out, dayOffset, biz};
 }
 function plWydatki(n){
   if(n===1) return "wydatek";
@@ -637,7 +651,7 @@ async function addEntry(){
   const err = $("addErr");
   err.style.display="none";
   if(!raw) return;
-  const {segments, dayOffset} = splitEntries(raw);
+  const {segments, dayOffset, biz} = splitEntries(raw);
   const items = [];
   for(const s of segments){
     const p = parseText(s);
@@ -666,6 +680,7 @@ async function addEntry(){
     }
     $("addBtn").disabled = false; setMode(addMode);
   }
+  for(const e of entries){ if(biz || (!e.inc && e.cat==="Praca / sprzęt")) e.biz = true; }
   EXP.push(...entries); save("bw_expenses",EXP);
   pending = entries;
   renderConfirm(); renderAll();
@@ -688,7 +703,7 @@ function renderConfirm(){
       </div>
     </div>
     ${e.inc ? "" : `<div class="selrow"><select data-cat="${i}"></select><select data-sub="${i}"></select></div>`}
-    ${multiAcc ? `<div class="selrow accsel"><select data-acc="${i}"></select></div>` : ""}
+    <div class="selrow accsel">${multiAcc ? `<select data-acc="${i}"></select>` : ""}<select data-biz="${i}"></select></div>
     ${e.inc ? "" : `<div class="selrow accsel"><select data-oc="${i}"></select></div>`}
     ${!e.inc && ocOf(e)==="zb" ? `<div class="zb-note">🍭 Ocena AI: tego raczej nie potrzebowałeś.</div>` : ""}
     ${!e.inc && ocOf(e)==="kontro" ? `<div class="zb-note" style="color:var(--warn)">🤔 Ocena AI: kontrowersyjny wydatek — dało się go pewnie uniknąć.</div>` : ""}
@@ -721,6 +736,11 @@ function renderConfirm(){
     if(os){
       os.innerHTML = Object.keys(OC_LABEL).map(k=>`<option value="${k}" ${ocOf(e)===k?"selected":""}>${OC_LABEL[k]}</option>`).join("");
       os.addEventListener("change",()=>{ e.oc = os.value; delete e.zb; save("bw_expenses",EXP); renderAll(); });
+    }
+    const bs = area.querySelector(`select[data-biz="${i}"]`);
+    if(bs){
+      bs.innerHTML = `<option value="">👤 prywatny</option><option value="1" ${e.biz?"selected":""}>🏢 firmowy</option>`;
+      bs.addEventListener("change",()=>{ if(bs.value) e.biz=true; else delete e.biz; save("bw_expenses",EXP); renderAll(); });
     }
     area.querySelector(`button[data-del="${i}"]`).addEventListener("click",()=>{
       EXP = EXP.filter(x=>x.id!==e.id);
@@ -804,7 +824,11 @@ async function handleImage(file){
     const dataUrl = await resizeImage(file, 1400);
     const items = await aiReceipt(dataUrl.split(",")[1]);
     if(!items.length) throw new Error("nie znalazłem pozycji na zdjęciu");
-    const entries = items.map(it=>({id:uid(), date:todayStr(), ts:Date.now(), amount:Math.round(it.kwota*100)/100, desc:it.nazwa, cat:it.cat, sub:it.sub, src:"ai", acc:SET.accounts[0].id, oc:it.oc}));
+    const entries = items.map(it=>{
+      const e = {id:uid(), date:todayStr(), ts:Date.now(), amount:Math.round(it.kwota*100)/100, desc:it.nazwa, cat:it.cat, sub:it.sub, src:"ai", acc:SET.accounts[0].id, oc:it.oc};
+      if(it.cat==="Praca / sprzęt") e.biz = true;
+      return e;
+    });
     for(const e of entries) learn(e.desc, e.cat, e.sub);
     EXP.push(...entries); save("bw_expenses",EXP);
     pending = entries;
@@ -851,7 +875,7 @@ function renderHead(){
 function expRow(e){
   return `<div class="exp-row" data-id="${e.id}">
     <div class="exp-dot" style="background:${catColor(e)}22">${catIcon(e)}</div>
-    <div class="exp-main"><div class="exp-desc">${esc(e.desc)}</div><div class="exp-cat">${e.inc?"Przychód":e.cat+" · "+e.sub}${e.inc?"":OC_BADGE[ocOf(e)]} · ${esc(accName(accOf(e)))}</div></div>
+    <div class="exp-main"><div class="exp-desc">${esc(e.desc)}</div><div class="exp-cat">${e.inc?"Przychód":e.cat+" · "+e.sub}${e.inc?"":OC_BADGE[ocOf(e)]}${e.biz?" · 🏢":""} · ${esc(accName(accOf(e)))}</div></div>
     <div class="exp-amt${e.inc?" amt-inc":""}">${e.inc?"+":""}${zl(e.amount)}</div>
   </div>`;
 }
@@ -880,6 +904,7 @@ function renderHistory(){
 
 /* ---------- wykresy ---------- */
 let chartFilter = "";
+let bizFilter = "";
 function renderCharts(){
   $("cLabel").textContent = MONTHS[viewMonth.m]+" "+viewMonth.y;
   const csel = $("chartCat");
@@ -887,9 +912,12 @@ function renderCharts(){
     csel.innerHTML = `<option value="">📊 Wszystkie kategorie</option>`+Object.keys(CATS).map(c=>`<option value="${c}">${CATS[c].icon} ${c}</option>`).join("");
     csel.dataset.filled = "1";
     csel.addEventListener("change",()=>{ chartFilter = csel.value; renderCharts(); });
+    document.querySelectorAll("#bizRow .typ").forEach(b=>b.addEventListener("click",()=>{ bizFilter = b.dataset.bizf; renderCharts(); }));
   }
   csel.value = chartFilter;
-  const list = expInMonth(viewMonth.y, viewMonth.m).filter(e=>!e.inc && (!chartFilter || e.cat===chartFilter));
+  document.querySelectorAll("#bizRow .typ").forEach(b=>b.classList.toggle("active", b.dataset.bizf===bizFilter));
+  const baseList = expInMonth(viewMonth.y, viewMonth.m).filter(e=>!e.inc && (!chartFilter || e.cat===chartFilter));
+  const list = baseList.filter(e=> !bizFilter || (bizFilter==="biz" ? !!e.biz : !e.biz));
   const nDays = daysInMonth(viewMonth.y, viewMonth.m);
   const now = new Date();
   const isCur = viewMonth.y===now.getFullYear() && viewMonth.m===now.getMonth();
@@ -1004,6 +1032,15 @@ function renderCharts(){
   $("ocList").innerHTML = total ? ocData.map(([k,label,col])=>{
     const v = sum(list.filter(e=>ocOf(e)===k));
     const pct = total ? v/total*100 : 0;
+    return `<div class="bud-row"><div class="bud-top"><span class="bud-name">${label}</span><span class="bud-nums"><b>${zl(v)}</b> · ${Math.round(pct)}%</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div></div>`;
+  }).join("") : `<div class="empty">Brak danych w tym miesiącu.</div>`;
+
+  /* --- prywatne vs firmowe --- */
+  const bizTotal = sum(baseList);
+  const bizData = [["👤 Prywatne", sum(baseList.filter(e=>!e.biz)), "var(--accent)"], ["🏢 Firmowe", sum(baseList.filter(e=>!!e.biz)), "#d95926"]];
+  $("bizList").innerHTML = bizTotal ? bizData.map(([label,v,col])=>{
+    const pct = v/bizTotal*100;
     return `<div class="bud-row"><div class="bud-top"><span class="bud-name">${label}</span><span class="bud-nums"><b>${zl(v)}</b> · ${Math.round(pct)}%</span></div>
       <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div></div>`;
   }).join("") : `<div class="empty">Brak danych w tym miesiącu.</div>`;
@@ -1247,7 +1284,7 @@ function openEditModal(id){
     <div class="m-row"><input type="number" id="eAmt" inputmode="decimal" step="0.01" value="${e.amount}"><input type="date" id="eDate" value="${e.date}"></div>
     <div class="m-row"><input type="text" id="eDesc" value="${esc(e.desc)}"></div>
     ${e.inc?"":`<div class="m-row"><select id="eCat"></select><select id="eSub"></select></div>`}
-    <div class="m-row"><select id="eAcc"></select></div>
+    <div class="m-row"><select id="eAcc"></select><select id="eBiz"></select></div>
     ${e.inc?"":`<div class="m-row"><select id="eOc"></select></div>`}
     <div class="m-actions"><button class="btn danger" id="eDel">Usuń</button><button class="btn" id="eCancel">Anuluj</button><button class="btn primary" id="eSave">Zapisz</button></div>`);
   if(!e.inc){
@@ -1260,12 +1297,14 @@ function openEditModal(id){
   }
   $("eAcc").innerHTML = SET.accounts.map(a=>`<option value="${a.id}" ${accOf(e)===a.id?"selected":""}>${e.inc?"na konto":"z konta"}: ${esc(a.name)}</option>`).join("");
   if(!e.inc) $("eOc").innerHTML = Object.keys(OC_LABEL).map(k=>`<option value="${k}" ${ocOf(e)===k?"selected":""}>${OC_LABEL[k]}</option>`).join("");
+  $("eBiz").innerHTML = `<option value="">👤 prywatny</option><option value="1" ${e.biz?"selected":""}>🏢 firmowy</option>`;
   $("eSave").addEventListener("click",()=>{
     const oldCat=e.cat, oldSub=e.sub;
     e.amount = Math.round((parseFloat(String($("eAmt").value).replace(",","."))||e.amount)*100)/100;
     e.date = $("eDate").value||e.date;
     e.desc = $("eDesc").value.trim()||e.desc;
     e.acc = $("eAcc").value;
+    if($("eBiz").value) e.biz = true; else delete e.biz;
     if(!e.inc){
       e.cat = catFromOption($("eCat").value);
       e.sub = $("eSub").value;
@@ -1318,10 +1357,10 @@ $("exportBtn").addEventListener("click",()=>{
   toast("Zapisano kopię danych");
 });
 $("csvBtn").addEventListener("click",()=>{
-  let csv = "﻿data;typ;kwota;kategoria;podkategoria;konto;ocena;opis\n";
+  let csv = "﻿data;typ;rodzaj;kwota;kategoria;podkategoria;konto;ocena;opis\n";
   const ocCsv = {ok:"normalny",kontro:"kontrowersyjny",zb:"niepotrzebny"};
   for(const e of [...EXP].sort((a,b)=>a.date.localeCompare(b.date))){
-    csv += `${e.date};${e.inc?"przychód":"wydatek"};${String(e.amount).replace(".",",")};${e.inc?"":e.cat};${e.inc?"":e.sub};${accName(accOf(e))};${e.inc?"":ocCsv[ocOf(e)]};"${e.desc.replace(/"/g,'""')}"\n`;
+    csv += `${e.date};${e.inc?"przychód":"wydatek"};${e.biz?"firmowy":"prywatny"};${String(e.amount).replace(".",",")};${e.inc?"":e.cat};${e.inc?"":e.sub};${accName(accOf(e))};${e.inc?"":ocCsv[ocOf(e)]};"${e.desc.replace(/"/g,'""')}"\n`;
   }
   downloadFile("budzet-"+todayStr()+".csv", csv, "text/csv");
 });
