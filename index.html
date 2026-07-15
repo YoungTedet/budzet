@@ -213,7 +213,7 @@ nav button.active{color:var(--accent)}
     <div class="chart-note" id="barNote"></div>
   </div>
   <div class="card chartbox">
-    <h3 id="donutTitle">Kategorie</h3>
+    <h3><span id="donutTitle">Kategorie</span> <button class="bud-edit" id="drillBack" style="float:right;display:none">← wróć</button></h3>
     <div id="donutChart"></div>
     <div class="legend" id="donutLegend"></div>
     <div class="chart-note" id="donutNote"></div>
@@ -924,7 +924,9 @@ function renderCharts(){
     csel.dataset.filled = "1";
     csel.addEventListener("change",()=>{ chartFilter = csel.value; renderCharts(); });
     document.querySelectorAll("#bizRow .typ").forEach(b=>b.addEventListener("click",()=>{ bizFilter = b.dataset.bizf; renderCharts(); }));
+    $("drillBack").addEventListener("click",()=>{ chartFilter = ""; renderCharts(); });
   }
+  $("drillBack").style.display = chartFilter ? "inline" : "none";
   csel.value = chartFilter;
   document.querySelectorAll("#bizRow .typ").forEach(b=>b.classList.toggle("active", b.dataset.bizf===bizFilter));
   const baseList = expInMonth(viewMonth.y, viewMonth.m).filter(e=>!e.inc && (!chartFilter || e.cat===chartFilter));
@@ -1012,7 +1014,7 @@ function renderCharts(){
   const DPAL = ["#3987e5","#199e70","#c98500","#008300","#9085e9","#e66767","#d55181","#d95926"];
   const colorFor = (name,i)=> name==="Pozostałe" ? "#898781" : (chartFilter ? DPAL[i%DPAL.length] : (CATS[name]?CATS[name].color:"#898781"));
   $("donutTitle").textContent = chartFilter ? "W środku: "+chartFilter : "Kategorie";
-  $("donutNote").textContent = !entries.length ? "" : (chartFilter ? "Wybierz „Wszystkie kategorie” u góry, żeby wrócić." : "Dotknij kategorii, żeby zajrzeć do środka.");
+  $("donutNote").textContent = !entries.length ? "" : (chartFilter ? "To podkategorie: "+chartFilter+" — „← wróć” pokazuje wszystko." : "Dotknij kawałka kółka albo kategorii na liście, żeby zajrzeć do środka.");
   if(!entries.length){
     $("donutChart").innerHTML = `<div class="empty">Brak danych w tym miesiącu.</div>`;
     $("donutLegend").innerHTML = "";
@@ -1022,8 +1024,9 @@ function renderCharts(){
     entries.forEach(([name,val],i)=>{
       const frac = val/total;
       const len = Math.max(0, frac*C - 2.5);
+      const drill = !chartFilter && CATS[name] ? ` data-drill="${name}" style="cursor:pointer"` : "";
       segs += `<circle cx="${CX}" cy="${CY}" r="${R}" fill="none" stroke="${colorFor(name,i)}" stroke-width="${SW}"
-        stroke-dasharray="${len.toFixed(1)} ${(C-len).toFixed(1)}" stroke-dashoffset="${(-off*C+C/4).toFixed(1)}" />`;
+        stroke-dasharray="${len.toFixed(1)} ${(C-len).toFixed(1)}" stroke-dashoffset="${(-off*C+C/4).toFixed(1)}"${drill}><title>${name}: ${zl(val)}</title></circle>`;
       off += frac;
     });
     $("donutChart").innerHTML = `<svg viewBox="0 0 180 180" style="max-width:210px;margin:0 auto" role="img" aria-label="Podział wydatków">
@@ -1035,7 +1038,7 @@ function renderCharts(){
       <span class="leg-name">${!chartFilter&&CATS[name]?CATS[name].icon+" ":""}${name}</span>
       <span class="leg-val">${zl(val)}</span>
       <span class="leg-pct">${Math.round(val/total*100)}%</span></div>`).join("");
-    document.querySelectorAll("#donutLegend [data-drill]").forEach(r=>r.addEventListener("click",()=>{ chartFilter = r.dataset.drill; renderCharts(); window.scrollTo(0,0); }));
+    document.querySelectorAll("#donutLegend [data-drill], #donutChart [data-drill]").forEach(r=>r.addEventListener("click",()=>{ chartFilter = r.dataset.drill; renderCharts(); }));
   }
 
   /* --- ocena zakupów --- */

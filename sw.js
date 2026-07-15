@@ -1,4 +1,4 @@
-const CACHE = "budzet-v6";
+const CACHE = "budzet-v7";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon.svg"];
 
 self.addEventListener("install", e => {
