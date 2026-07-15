@@ -241,7 +241,11 @@ nav button.active{color:var(--accent)}
     <div id="walletSub" style="color:var(--muted);font-size:13px;margin:2px 0 4px"></div>
     <div id="walletMonth" style="font-size:13px;color:var(--ink2);margin-bottom:8px"></div>
     <div id="accList"></div>
-    <div class="set-note" style="margin-top:8px">Dotknij konta, żeby ustawić lub poprawić jego stan. Nowe wpisy domyślnie idą z pierwszego konta — możesz to zmienić przy dodawaniu.</div>
+    <div style="margin-top:12px">
+      <div class="set-note" style="margin-bottom:6px">Czym zwykle płacisz? Nowe wpisy pójdą z tego konta:</div>
+      <select id="defAccSel" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;font-size:15px"></select>
+    </div>
+    <div class="set-note" style="margin-top:8px">Dotknij konta, żeby poprawić jego stan. Przy dodawaniu możesz też powiedzieć „gotówką", „kartą", „blikiem" albo nazwę konta — wpis pójdzie tam, gdzie trzeba.</div>
   </div>
   <div class="card">
     <h3>Stałe opłaty co miesiąc <button class="bud-edit" id="addFixBtn" style="float:right">+ dodaj</button></h3>
@@ -427,7 +431,7 @@ const NUMWORDS = {"zero":0,"jeden":1,"jedna":1,"jednego":1,"dwa":2,"dwie":2,"trz
 const load = (k,d)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } };
 const save = (k,v)=>localStorage.setItem(k,JSON.stringify(v));
 let EXP = load("bw_expenses",[]);
-let SET = Object.assign({apiKey:"",budgetTotal:0,budgetCats:{},accounts:null,fixed:[],fixedPaid:{},debts:[],autoBackup:{freq:"week",last:""}}, load("bw_settings",{}));
+let SET = Object.assign({apiKey:"",budgetTotal:0,budgetCats:{},accounts:null,defaultAcc:"",fixed:[],fixedPaid:{},debts:[],autoBackup:{freq:"week",last:""}}, load("bw_settings",{}));
 if(!SET.autoBackup) SET.autoBackup = {freq:"week",last:""};
 if(!SET.accounts || !SET.accounts.length) SET.accounts = [
   {id:"a1",name:"Gotówka",start:0},
@@ -465,6 +469,10 @@ const ocFromDict = sub => (sub==="Niezdrowe jedzenie"||sub==="Alkohol") ? "zb" :
 const catIcon = e => e.inc ? "💰" : (CATS[e.cat] ? CATS[e.cat].icon : "📦");
 const catColor = e => e.inc ? "#0ca30c" : (CATS[e.cat] ? CATS[e.cat].color : "#898781");
 const accOf = e => (e.acc && SET.accounts.some(a=>a.id===e.acc)) ? e.acc : SET.accounts[0].id;
+const defAcc = ()=>{
+  if(SET.defaultAcc && SET.accounts.some(a=>a.id===SET.defaultAcc)) return SET.defaultAcc;
+  return (SET.accounts[1]||SET.accounts[0]).id; // domyślnie drugie konto (karta), nie gotówka
+};
 const accName = id => { const a=SET.accounts.find(x=>x.id===id); return a ? a.name : "?"; };
 function accBalance(a){ return a.start + EXP.reduce((t,e)=> accOf(e)===a.id ? t + (e.inc ? e.amount : -e.amount) : t, 0); }
 const totalMoney = ()=> SET.accounts.reduce((t,a)=>t+accBalance(a),0);
@@ -625,6 +633,27 @@ function splitEntries(raw){
     biz = true;
     t = t.replace(/(^|\s)(firmow\w*|na firmę|na firme|służbow\w*|sluzbow\w*)(?=\s|$)/gi," ");
   }
+  // konto: nazwa konta, „gotówką”, „kartą”, „blikiem”, „przelewem”
+  let acc = null;
+  const escRe = s=>s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  for(const a of SET.accounts){
+    if(a.name.trim().length<3) continue;
+    const re = new RegExp("(^|\\s)"+escRe(a.name.trim())+"[^\\s,.;]{0,2}(?=[\\s,.;]|$)","i");
+    if(re.test(t)){ acc = a.id; t = t.replace(re," "); break; }
+  }
+  if(!acc && /(^|\s)(gotówk|gotowk)/i.test(t)){
+    const g = SET.accounts.find(a=>/gotówk|gotowk/i.test(a.name));
+    if(g) acc = g.id;
+    t = t.replace(/(^|\s)(gotówk|gotowk)[^\s,.;]*/gi," ");
+  }
+  const KARTA_RE = /(^|\s)kart[aąę](?!\s?(sd|pami|graficzn|podarunkow|miejsk))(?=[\s,.;]|$)/i;
+  if(!acc && (KARTA_RE.test(t) || /(^|\s)(blikiem|blik|przelewem)(?=[\s,.;]|$)/i.test(t))){
+    const cash = SET.accounts.find(a=>/gotówk|gotowk/i.test(a.name));
+    const card = SET.accounts.find(a=>/kart/i.test(a.name))
+      || ((!cash || defAcc()!==cash.id) ? SET.accounts.find(a=>a.id===defAcc()) : SET.accounts.find(a=>a.id!==cash.id));
+    if(card) acc = card.id;
+    t = t.replace(new RegExp(KARTA_RE.source,"gi")," ").replace(/(^|\s)(blikiem|blik|przelewem)(?=[\s,.;]|$)/gi," ");
+  }
   // nie rozdzielaj „5 zł i 50 groszy” na dwa wydatki
   t = t.replace(/((?:złotych|zlotych|złote|zlote|złoty|zloty|zł|zl)\s*)i\s+(?=\d{1,2}\s*(?:groszy|grosze|grosz|gr))/gi,"$1");
   const rawParts = t.split(/\s*,\s*(?=\D)|\s+i\s+|\s+oraz\s+|\s+plus\s+|\s*;\s*|\n+/i);
@@ -637,7 +666,7 @@ function splitEntries(raw){
     else buf = buf ? buf+" "+p : p;
   }
   if(buf){ if(out.length) out[out.length-1] += " "+buf; else out.push(buf); }
-  return {segments:out, dayOffset, biz};
+  return {segments:out, dayOffset, biz, acc};
 }
 function plWydatki(n){
   if(n===1) return "wydatek";
@@ -662,7 +691,7 @@ async function addEntry(){
   const err = $("addErr");
   err.style.display="none";
   if(!raw) return;
-  const {segments, dayOffset, biz} = splitEntries(raw);
+  const {segments, dayOffset, biz, acc:accHint} = splitEntries(raw);
   const items = [];
   for(const s of segments){
     const p = parseText(s);
@@ -675,7 +704,7 @@ async function addEntry(){
   const income = addMode==="inc" || INC_RE.test(raw);
   const entries = [], unknown = [];
   for(const p of items){
-    const e = { id:uid(), date:todayStr(dayOffset+p.dayOffset), ts:Date.now(), amount:Math.round(p.amount*100)/100, desc:p.desc, cat:"Inne", sub:"Inne", src:"none", acc:SET.accounts[0].id };
+    const e = { id:uid(), date:todayStr(dayOffset+p.dayOffset), ts:Date.now(), amount:Math.round(p.amount*100)/100, desc:p.desc, cat:"Inne", sub:"Inne", src:"none", acc:accHint||defAcc() };
     if(income){ e.inc = true; e.cat = "Przychód"; e.sub = ""; entries.push(e); continue; }
     const hit = dictLookup(p.desc);
     if(hit){ e.cat=hit.cat; e.sub=hit.sub; e.src="dict"; e.oc=ocFromDict(hit.sub); } else unknown.push(e);
@@ -836,7 +865,7 @@ async function handleImage(file){
     const items = await aiReceipt(dataUrl.split(",")[1]);
     if(!items.length) throw new Error("nie znalazłem pozycji na zdjęciu");
     const entries = items.map(it=>{
-      const e = {id:uid(), date:todayStr(), ts:Date.now(), amount:Math.round(it.kwota*100)/100, desc:it.nazwa, cat:it.cat, sub:it.sub, src:"ai", acc:SET.accounts[0].id, oc:it.oc};
+      const e = {id:uid(), date:todayStr(), ts:Date.now(), amount:Math.round(it.kwota*100)/100, desc:it.nazwa, cat:it.cat, sub:it.sub, src:"ai", acc:defAcc(), oc:it.oc};
       if(it.cat==="Praca / sprzęt") e.biz = true;
       return e;
     });
@@ -1146,8 +1175,14 @@ function renderWallet(){
     : "razem na wszystkich kontach";
   $("walletMonth").innerHTML = "w tym miesiącu: <span class='amt-inc'>+"+zl0(got)+"</span> przychodów · <span style='color:var(--serious)'>−"+zl0(spent)+"</span> wydatków";
   $("accList").innerHTML = SET.accounts.map(a=>
-    `<div class="acc-row" data-acc="${a.id}"><span class="acc-name">${esc(a.name)}</span><span class="acc-val">${zl(accBalance(a))}</span></div>`).join("");
+    `<div class="acc-row" data-acc="${a.id}"><span class="acc-name">${esc(a.name)}${a.id===defAcc()?' <span style="color:var(--muted);font-size:12px">· domyślne</span>':""}</span><span class="acc-val">${zl(accBalance(a))}</span></div>`).join("");
   document.querySelectorAll("#accList .acc-row").forEach(r=>r.addEventListener("click",()=>openAccModal(r.dataset.acc)));
+  const ds = $("defAccSel");
+  ds.innerHTML = SET.accounts.map(a=>`<option value="${a.id}" ${a.id===defAcc()?"selected":""}>${esc(a.name)}</option>`).join("");
+  if(!ds.dataset.wired){
+    ds.dataset.wired = "1";
+    ds.addEventListener("change",()=>{ SET.defaultAcc = ds.value; save("bw_settings",SET); renderAll(); toast("Domyślne konto: "+accName(ds.value)); });
+  }
 }
 function openAccModal(id){
   const a = id ? SET.accounts.find(x=>x.id===id) : null;
@@ -1196,7 +1231,7 @@ function togglePaid(fid){
     delete SET.fixedPaid[m][fid];
     toast("Cofnięto: "+f.name);
   } else {
-    const e = {id:uid(), date:todayStr(), ts:Date.now(), amount:f.amount, desc:f.name, cat:f.cat, sub:f.sub, src:"dict", acc:SET.accounts[0].id};
+    const e = {id:uid(), date:todayStr(), ts:Date.now(), amount:f.amount, desc:f.name, cat:f.cat, sub:f.sub, src:"dict", acc:defAcc()};
     EXP.push(e);
     SET.fixedPaid[m][fid] = e.id;
     toast("Zapisano opłatę: "+f.name+" — "+zl(f.amount));
@@ -1251,7 +1286,7 @@ function renderDebts(){
 function settleDebt(id){
   const d = SET.debts.find(x=>x.id===id); if(!d) return;
   if(!confirm(d.dir==="in" ? esc(d.name)+" oddał(a) Ci "+zl(d.amount)+"? Dodam to jako przychód." : "Oddałeś "+esc(d.name)+" "+zl(d.amount)+"? Dodam to jako wydatek.")) return;
-  const e = {id:uid(), date:todayStr(), ts:Date.now(), amount:d.amount, desc:(d.dir==="in"?"zwrot długu od ":"oddany dług: ")+d.name, acc:SET.accounts[0].id};
+  const e = {id:uid(), date:todayStr(), ts:Date.now(), amount:d.amount, desc:(d.dir==="in"?"zwrot długu od ":"oddany dług: ")+d.name, acc:defAcc()};
   if(d.dir==="in"){ e.inc = true; e.cat = "Przychód"; e.sub = ""; }
   else { e.cat = "Inne"; e.sub = "Pożyczki"; e.src = "dict"; e.oc = "ok"; }
   EXP.push(e);
