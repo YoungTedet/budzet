@@ -291,7 +291,17 @@ nav button.active{color:var(--accent)}
       <button class="btn" id="importBtn">Import</button>
       <input type="file" id="importFile" accept=".json" style="display:none">
     </div>
-    <div class="set-note" style="margin-top:10px">Dane mieszkają na telefonie. Raz na jakiś czas zrób eksport — plik możesz zachować np. na Dysku Google. Import przywraca dane z takiego pliku.</div>
+    <div class="set-row" style="margin-top:12px">
+      <label>🔄 Automatyczna kopia zapasowa</label>
+      <select id="abFreq" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:11px;font-size:15px">
+        <option value="day">codziennie</option>
+        <option value="week">co tydzień</option>
+        <option value="month">co miesiąc</option>
+        <option value="off">wyłączona</option>
+      </select>
+      <div class="set-note" id="abInfo"></div>
+    </div>
+    <div class="set-note" style="margin-top:10px">Dane mieszkają na telefonie. Automatyczna kopia sama zapisuje plik do Pobranych przy otwarciu aplikacji — warto go czasem przerzucić np. na Dysk Google. Import przywraca dane z takiego pliku.</div>
   </div>
   <div class="card">
     <h3>Nauczone słowa</h3>
@@ -417,7 +427,8 @@ const NUMWORDS = {"zero":0,"jeden":1,"jedna":1,"jednego":1,"dwa":2,"dwie":2,"trz
 const load = (k,d)=>{ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } };
 const save = (k,v)=>localStorage.setItem(k,JSON.stringify(v));
 let EXP = load("bw_expenses",[]);
-let SET = Object.assign({apiKey:"",budgetTotal:0,budgetCats:{},accounts:null,fixed:[],fixedPaid:{},debts:[]}, load("bw_settings",{}));
+let SET = Object.assign({apiKey:"",budgetTotal:0,budgetCats:{},accounts:null,fixed:[],fixedPaid:{},debts:[],autoBackup:{freq:"week",last:""}}, load("bw_settings",{}));
+if(!SET.autoBackup) SET.autoBackup = {freq:"week",last:""};
 if(!SET.accounts || !SET.accounts.length) SET.accounts = [
   {id:"a1",name:"Gotówka",start:0},
   {id:"a2",name:"Konto 1",start:0},
@@ -1351,11 +1362,33 @@ $("testKeyBtn").addEventListener("click",async ()=>{
     $("apiStatus").style.color = "var(--crit)";
   }
 });
-$("exportBtn").addEventListener("click",()=>{
+function exportData(auto){
   const data = {app:"budzet",version:3,exported:new Date().toISOString(),expenses:EXP,settings:{budgetTotal:SET.budgetTotal,budgetCats:SET.budgetCats,accounts:SET.accounts,fixed:SET.fixed,fixedPaid:SET.fixedPaid,debts:SET.debts},learned:LEARNED};
   downloadFile("budzet-kopia-"+todayStr()+".json", JSON.stringify(data,null,1), "application/json");
-  toast("Zapisano kopię danych");
+  SET.autoBackup.last = todayStr();
+  save("bw_settings",SET);
+  renderBackup();
+  toast(auto ? "🔄 Zapisałem automatyczną kopię danych w Pobranych" : "Zapisano kopię danych");
+}
+$("exportBtn").addEventListener("click",()=>exportData(false));
+function renderBackup(){
+  $("abFreq").value = SET.autoBackup.freq || "week";
+  $("abInfo").textContent = SET.autoBackup.last
+    ? "Ostatnia kopia: "+fmtDate(SET.autoBackup.last)+" · plik w folderze Pobrane"
+    : "Jeszcze nie było kopii — zrobi się przy najbliższym otwarciu aplikacji.";
+}
+$("abFreq").addEventListener("change",()=>{
+  SET.autoBackup.freq = $("abFreq").value;
+  save("bw_settings",SET); renderBackup();
+  toast(SET.autoBackup.freq==="off" ? "Automatyczna kopia wyłączona" : "Zapisano");
 });
+function checkAutoBackup(){
+  const days = {day:1, week:7, month:30}[SET.autoBackup.freq];
+  if(!days || !EXP.length) return;
+  const since = SET.autoBackup.last ? Math.floor((Date.now() - new Date(SET.autoBackup.last+"T12:00"))/86400000) : 9999;
+  if(since >= days) exportData(true);
+}
+setTimeout(checkAutoBackup, 2000);
 $("csvBtn").addEventListener("click",()=>{
   let csv = "﻿data;typ;rodzaj;kwota;kategoria;podkategoria;konto;ocena;opis\n";
   const ocCsv = {ok:"normalny",kontro:"kontrowersyjny",zb:"niepotrzebny"};
@@ -1434,7 +1467,7 @@ $("cPrev").addEventListener("click",()=>shiftMonth(-1));
 $("cNext").addEventListener("click",()=>shiftMonth(1));
 
 function renderAll(){
-  renderHead(); renderToday(); renderHistory(); renderCharts(); renderWallet(); renderFixed(); renderDebts(); renderBudget(); renderLearned();
+  renderHead(); renderToday(); renderHistory(); renderCharts(); renderWallet(); renderFixed(); renderDebts(); renderBudget(); renderLearned(); if(typeof renderBackup==="function") renderBackup();
 }
 renderAll();
 
