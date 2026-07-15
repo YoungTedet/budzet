@@ -15,29 +15,45 @@
   --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
   --accent:#3987e5;
   --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+  --ease:cubic-bezier(.32,.72,0,1);
 }
+html{scroll-behavior:smooth}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{background:var(--page);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overscroll-behavior-y:contain}
 body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
 button,input,select,textarea{font:inherit;color:inherit}
 h1,h2,h3{font-weight:650}
 .screen{display:none;padding:16px 16px 24px;max-width:560px;margin:0 auto}
-.screen.active{display:block}
+.screen.active{display:block;animation:screenIn .3s var(--ease) both}
+@keyframes screenIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 /* ---------- header ---------- */
 .apphead{padding:18px 16px 4px;max-width:560px;margin:0 auto;display:flex;align-items:baseline;justify-content:space-between}
 .apphead .title{font-size:20px;font-weight:700}
 .apphead .month-total{font-size:14px;color:var(--ink2)}
 .apphead .month-total b{color:var(--ink);font-size:16px}
 /* ---------- cards ---------- */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
 .card h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;font-weight:600}
 /* ---------- add screen ---------- */
 .bigInput{width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:16px;padding:16px;font-size:18px;color:var(--ink);resize:none;line-height:1.4;min-height:64px}
 .bigInput:focus{outline:none;border-color:var(--accent)}
 .bigInput::placeholder{color:var(--muted)}
-.addBtn{width:100%;margin-top:10px;background:var(--accent);border:none;border-radius:14px;padding:15px;font-size:17px;font-weight:650;color:#fff;cursor:pointer}
-.addBtn:active{opacity:.8}
+.addBtn{width:100%;margin-top:10px;background:linear-gradient(180deg,#4a94ea,#2f7bd9);border:none;border-radius:14px;padding:15px;font-size:17px;font-weight:650;color:#fff;cursor:pointer;box-shadow:0 6px 18px rgba(57,135,229,.28)}
 .addBtn:disabled{opacity:.5}
+/* płynne dotknięcia (jak iOS) */
+.btn,.addBtn,.typ,.cc-ok,.monthnav button,.bud-edit,.exp-row,.acc-row,.leg-row,nav button{transition:transform .16s var(--ease),opacity .16s ease,background .2s ease,color .2s ease}
+.btn:active,.addBtn:active,.typ:active,.cc-ok:active,.monthnav button:active,.bud-edit:active{transform:scale(.96)}
+.exp-row:active,.acc-row:active,.leg-row:active{transform:scale(.985);opacity:.8}
+@keyframes cardIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+.ccard,.cc-ok{animation:cardIn .38s var(--ease) both}
+@keyframes popIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
+#donutChart svg{animation:popIn .45s var(--ease) both}
+.legend{animation:screenIn .35s var(--ease) both}
+@keyframes growBar{from{transform:scaleY(0)}}
+.bar{transform-box:fill-box;transform-origin:center bottom;animation:growBar .5s var(--ease) both}
+@keyframes fillIn{from{width:0}}
+.bar-fill{animation:fillIn .55s var(--ease)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 .typerow{display:flex;gap:8px;margin-bottom:10px}
 .typ{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px;font-size:14px;font-weight:650;color:var(--muted);cursor:pointer}
 .typ.active{color:var(--ink);border-color:var(--accent);background:var(--surface2)}
@@ -129,11 +145,19 @@ h1,h2,h3{font-weight:650}
 /* ---------- bottom nav ---------- */
 nav{position:fixed;bottom:0;left:0;right:0;background:rgba(26,26,25,.96);backdrop-filter:blur(12px);border-top:1px solid var(--border);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:50}
 nav button{flex:1;background:none;border:none;padding:9px 0 7px;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:10.5px;font-weight:600;cursor:pointer}
-nav button .nico{font-size:21px;line-height:1}
+nav button .nico{font-size:21px;line-height:1;transition:transform .25s var(--ease)}
 nav button.active{color:var(--accent)}
+nav button.active .nico{transform:translateY(-2px) scale(1.12)}
 /* ---------- modal ---------- */
 #modalBg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:100;align-items:flex-end;justify-content:center}
-#modalBg.open{display:flex}
+#modalBg.open{display:flex;animation:fadeBg .25s ease both}
+#modalBg.open #modal{animation:sheetUp .38s var(--ease) both}
+#modalBg.closing{animation:fadeBgOut .18s ease both}
+#modalBg.closing #modal{animation:sheetDown .18s ease-in both}
+@keyframes fadeBg{from{opacity:0}}
+@keyframes fadeBgOut{to{opacity:0}}
+@keyframes sheetUp{from{transform:translateY(100%)}}
+@keyframes sheetDown{to{transform:translateY(100%)}}
 #modal{background:var(--surface);border-radius:20px 20px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));width:100%;max-width:560px;border:1px solid var(--border);border-bottom:none}
 #modal h3{font-size:16px;color:var(--ink);text-transform:none;letter-spacing:0;margin-bottom:14px}
 .m-row{display:flex;gap:8px;margin-bottom:10px}
@@ -142,7 +166,9 @@ nav button.active{color:var(--accent)}
 .m-actions{display:flex;gap:8px;margin-top:14px}
 .m-actions .btn{flex:1;text-align:center;padding:13px}
 /* toast */
-#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom));background:var(--surface2);border:1px solid var(--border);color:var(--ink);padding:10px 18px;border-radius:12px;font-size:14px;z-index:200;display:none;max-width:88vw;text-align:center}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom));background:var(--surface2);border:1px solid var(--border);color:var(--ink);padding:10px 18px;border-radius:12px;font-size:14px;z-index:200;display:none;max-width:88vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+#toast.anim{animation:toastIn .32s var(--ease)}
+@keyframes toastIn{from{opacity:0;transform:translate(-50%,16px)}to{opacity:1;transform:translate(-50%,0)}}
 </style>
 </head>
 <body>
@@ -456,7 +482,12 @@ const zl0 = n=> n % 1 === 0 ? String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d)
 const todayStr = (off=0)=>{ const d=new Date(); d.setDate(d.getDate()+off); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
 const uid = ()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc = s=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function toast(msg){ const t=$("toast"); t.textContent=msg; t.style.display="block"; clearTimeout(toast._t); toast._t=setTimeout(()=>t.style.display="none",2600); }
+function toast(msg){
+  const t=$("toast");
+  t.textContent=msg; t.style.display="block";
+  t.classList.remove("anim"); void t.offsetWidth; t.classList.add("anim");
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.style.display="none",2600);
+}
 
 /* ---------- ocena wydatku: normalny / kontrowersyjny / niepotrzebny ---------- */
 const ocOf = e => e.oc || (e.zb ? "zb" : "ok");
@@ -731,7 +762,7 @@ function renderConfirm(){
   const area = $("confirmArea");
   if(!pending.length){ area.innerHTML=""; return; }
   const multiAcc = SET.accounts.length>1;
-  area.innerHTML = pending.map((e,i)=>`<div class="card ccard">
+  area.innerHTML = pending.map((e,i)=>`<div class="card ccard" style="animation-delay:${Math.min(i,6)*60}ms">
     <div class="cc-head">
       <div>
         <div class="cc-amount${e.inc?" amt-inc":""}">${e.inc?"+":""}${zl(e.amount)}</div>
@@ -748,7 +779,7 @@ function renderConfirm(){
     ${!e.inc && ocOf(e)==="zb" ? `<div class="zb-note">🍭 Ocena AI: tego raczej nie potrzebowałeś.</div>` : ""}
     ${!e.inc && ocOf(e)==="kontro" ? `<div class="zb-note" style="color:var(--warn)">🤔 Ocena AI: kontrowersyjny wydatek — dało się go pewnie uniknąć.</div>` : ""}
     <div class="cc-src">${e.inc ? "💰 Zapisane jako przychód." : SRC_TXT[e.src]}</div>
-  </div>`).join("") + `<button class="cc-ok" id="ccOk">OK, ${pending.length>1?"wszystko ":""}się zgadza</button>`;
+  </div>`).join("") + `<button class="cc-ok" id="ccOk" style="animation-delay:${Math.min(pending.length,7)*60}ms">OK, ${pending.length>1?"wszystko ":""}się zgadza</button>`;
   pending.forEach((e,i)=>{
     if(!e.inc){
       const cs = area.querySelector(`select[data-cat="${i}"]`);
@@ -997,7 +1028,7 @@ function renderCharts(){
     const col = over ? "var(--crit)" : (chartFilter && CATS[chartFilter] ? CATS[chartFilter].color : "var(--accent)");
     if(perDay[i]>0){
       const r = Math.min(3, bw/2, h/2);
-      bars += `<path d="M${x},${(padT+plotH).toFixed(1)} L${x},${(y+r).toFixed(1)} Q${x},${y.toFixed(1)} ${(x+r).toFixed(1)},${y.toFixed(1)} L${(x+bw-r).toFixed(1)},${y.toFixed(1)} Q${(x+bw).toFixed(1)},${y.toFixed(1)} ${(x+bw).toFixed(1)},${(y+r).toFixed(1)} L${(x+bw).toFixed(1)},${(padT+plotH).toFixed(1)} Z" fill="${col}"/>`;
+      bars += `<path class="bar" style="animation-delay:${i*12}ms" d="M${x},${(padT+plotH).toFixed(1)} L${x},${(y+r).toFixed(1)} Q${x},${y.toFixed(1)} ${(x+r).toFixed(1)},${y.toFixed(1)} L${(x+bw-r).toFixed(1)},${y.toFixed(1)} Q${(x+bw).toFixed(1)},${y.toFixed(1)} ${(x+bw).toFixed(1)},${(y+r).toFixed(1)} L${(x+bw).toFixed(1)},${(padT+plotH).toFixed(1)} Z" fill="${col}"/>`;
     }
     bars += `<rect class="barhit" data-day="${i+1}" x="${(padL+plotW*i/nDays).toFixed(1)}" y="0" width="${(plotW/nDays).toFixed(1)}" height="${H-padB}" fill="transparent"/>`;
   }
@@ -1375,8 +1406,13 @@ document.addEventListener("click",ev=>{
 });
 
 /* ---------- modal ---------- */
-function openModal(html){ $("modal").innerHTML=html; $("modalBg").classList.add("open"); }
-function closeModal(){ $("modalBg").classList.remove("open"); }
+function openModal(html){ const bg=$("modalBg"); bg.classList.remove("closing"); $("modal").innerHTML=html; bg.classList.add("open"); }
+function closeModal(){
+  const bg=$("modalBg");
+  if(!bg.classList.contains("open")) return;
+  bg.classList.add("closing");
+  setTimeout(()=>bg.classList.remove("open","closing"),180);
+}
 $("modalBg").addEventListener("click",ev=>{ if(ev.target.id==="modalBg") closeModal(); });
 
 /* ---------- ustawienia ---------- */
